@@ -27,3 +27,37 @@ npm run dev
 ```sh
 npm run build
 ```
+
+### Preview Production Build
+
+```sh
+npm run preview
+```
+
+## Docker Setup
+
+### Build Docker Image
+
+```sh
+docker build -t mermaid-vue-app .
+```
+
+### Run Docker Container
+
+```sh
+docker run -p 4173:4173 mermaid-vue-app
+```
+
+The application will be available at `http://localhost:4173`
+
+### Docker Development
+
+For development with Docker, you can also run:
+
+```sh
+# Build and run in one command
+docker build -t mermaid-vue-app . && docker run -p 4173:4173 mermaid-vue-app
+
+# Or run with automatic removal after stopping
+docker run --rm -p 4173:4173 mermaid-vue-app
+```
