@@ -10,17 +10,17 @@
       </div>
     </header>
     <main class="app-main">
-      <MermaidRenderer ref="mermaidRenderer" :theme="theme" @update:theme="theme = $event" />
+      <ProjectWorkspace :theme="theme" @update:theme="theme = $event" />
     </main>
   </div>
 </template>
 
 <script>
-import MermaidRenderer from './components/MermaidRenderer.vue'
+import ProjectWorkspace from './components/ProjectWorkspace.vue'
 
 export default {
   components: {
-    MermaidRenderer
+    ProjectWorkspace
   },
   data() {
     return {

@@ -6,9 +6,9 @@
       <span class="notification-message">{{ notification.message }}</span>
       <button class="notification-close" @click="hideNotification">×</button>
     </div>
-    
-    <div class="split-pane" :style="{height: '100%'}">
-      <div class="pane editor-pane" :style="{width: leftWidth + '%'}">
+
+    <div class="split-pane" :style="{ height: '100%' }">
+      <div class="pane editor-pane" :style="{ width: leftWidth + '%' }">
         <!-- Editor toolbar with file operations and theme selection -->
         <div class="editor-toolbar">
           <div class="toolbar-section file-info">
@@ -18,12 +18,13 @@
                 {{ currentFileName || 'Untitled Document' }}
                 <span v-if="isFileModified" class="modified-dot" title="File has unsaved changes">●</span>
               </span>
-              <span v-if="!isFileSystemAccessSupported()" class="compatibility-badge" title="Advanced file features not supported in this browser">
+              <span v-if="!isFileSystemAccessSupported()" class="compatibility-badge"
+                title="Advanced file features not supported in this browser">
                 Limited
               </span>
             </div>
           </div>
-          
+
           <div class="toolbar-section file-operations">
             <button class="toolbar-btn" @click="loadFileWithErrorHandling" title="Load File (Ctrl+O)">
               📁 Load
@@ -41,7 +42,7 @@
               🖼️ Export
             </button>
           </div>
-          
+
           <div class="toolbar-section theme-selection">
             <label class="theme-label">Theme:</label>
             <select class="theme-select" :value="theme" @change="$emit('update:theme', $event.target.value)">
@@ -55,7 +56,7 @@
         <div ref="editor" class="mermaid-codemirror"></div>
       </div>
       <div class="split-bar" @mousedown="startDrag"></div>
-      <div class="pane diagram-pane" :style="{width: (100 - leftWidth) + '%'}">
+      <div class="pane diagram-pane" :style="{ width: (100 - leftWidth) + '%' }">
         <div class="diagram-container" :class="themeClass">
           <div class="mermaid" ref="diagramContainer"></div>
         </div>
@@ -82,7 +83,11 @@ export default defineComponent({
   props: {
     theme: {
       type: String,
-      default: 'default'
+      default: ''
+    },
+    initialContent: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -95,23 +100,23 @@ export default defineComponent({
       dragStartX: 0,
       dragStartWidth: 50, // Updated to match new default
       editorView: null,
-      
+
       // New auto-save properties
       autoSaveTimer: null,
       autoSaveKey: 'mermaid-autosave-content',
-      
+
       // New file management properties
       currentFileName: null,
       currentFileHandle: null, // File System Access API handle
       isFileModified: false,
       lastSavedContent: '',
       currentFileHash: null, // Current file hash for localStorage operations
-      
+
       // ResizeObserver for dynamic height updates
       resizeObserver: null,
       resizeDebounceTimer: null,
       windowResizeHandler: null,
-      
+
       // Notification system
       notification: {
         show: false,
@@ -120,14 +125,14 @@ export default defineComponent({
         icon: 'ℹ️',
         timeout: null
       },
-      
+
       // Mobile responsiveness properties
       isMobile: false,
       isLandscape: false,
       screenWidth: 0,
       touchStartY: 0,
       touchStartHeight: 0,
-      
+
       // localStorage fallback
       memoryStorage: null
     }
@@ -138,6 +143,12 @@ export default defineComponent({
     }
   },
   watch: {
+    initialContent: {
+      immediate: true,
+      handler(newContent) {
+        this.setEditorContent(newContent ?? '');
+      }
+    },
     theme: {
       immediate: true,
       handler(newTheme) {
@@ -150,7 +161,7 @@ export default defineComponent({
             });
             this.renderDiagram();
           }
-          
+
           // Update CodeMirror theme and syntax highlighting
           this.updateEditorTheme(newTheme);
         });
@@ -165,27 +176,27 @@ export default defineComponent({
         theme: this.theme || 'default',
         securityLevel: 'loose'
       });
-      
+      ;
       // Check browser compatibility first
       this.validateBrowserCompatibility();
-      
+
       // Initialize all new features in proper order
       this.initCodeMirrorWithErrorHandling();
       this.initResizeObserver();
-      this.initAutoSave();
+      // this.initAutoSave();
       this.initKeyboardShortcuts();
       this.initFileSystemFeatures();
       this.initMobileResponsiveness();
-      
+
       // Initialize existing drag functionality
       window.addEventListener('mousemove', this.onDrag);
       window.addEventListener('mouseup', this.stopDrag);
-      
+
       // Initialize notification cleanup
       this.initNotificationSystem();
-      
+
       console.log('MermaidRenderer component mounted successfully with all features');
-      
+
     } catch (error) {
       console.error('Error during component mounting:', error);
       this.showErrorMessage('Failed to initialize the editor. Please refresh the page and try again.');
@@ -196,61 +207,61 @@ export default defineComponent({
       // Clean up window event listeners
       window.removeEventListener('mousemove', this.onDrag);
       window.removeEventListener('mouseup', this.stopDrag);
-      
+
       // Clean up CodeMirror editor
       if (this.editorView) {
         this.editorView.destroy();
         this.editorView = null;
       }
-      
+
       // Clean up auto-save timer
       if (this.autoSaveTimer) {
         clearTimeout(this.autoSaveTimer);
         this.autoSaveTimer = null;
       }
-      
+
       // Clean up debounce timer
       if (this.debounceTimer) {
         clearTimeout(this.debounceTimer);
         this.debounceTimer = null;
       }
-      
+
       // Clean up notification timeout
       if (this.notification.timeout) {
         clearTimeout(this.notification.timeout);
         this.notification.timeout = null;
       }
-      
+
       // Clean up ResizeObserver
       if (this.resizeObserver) {
         this.resizeObserver.disconnect();
         this.resizeObserver = null;
       }
-      
+
       // Clean up resize-related timers
       if (this.resizeDebounceTimer) {
         clearTimeout(this.resizeDebounceTimer);
         this.resizeDebounceTimer = null;
       }
-      
+
       // Clean up window resize handler
       if (this.windowResizeHandler) {
         window.removeEventListener('resize', this.windowResizeHandler);
         this.windowResizeHandler = null;
       }
-      
+
       // Clean up File System API handles (they don't need explicit cleanup but good practice)
       this.currentFileHandle = null;
-      
+
       // Clean up beforeunload event listener
       window.removeEventListener('beforeunload', this.handleBeforeUnload);
-      
+
       // Clean up keyboard event listeners if any were added globally
       this.cleanupKeyboardShortcuts();
-      
+
       // Clean up mobile responsiveness event listeners
       window.removeEventListener('orientationchange', this.handleOrientationChange);
-      
+
       // Clean up touch event listeners
       const splitBar = this.$el?.querySelector('.split-bar');
       if (splitBar) {
@@ -258,18 +269,18 @@ export default defineComponent({
         splitBar.removeEventListener('touchmove', this.handleTouchMove);
         splitBar.removeEventListener('touchend', this.handleTouchEnd);
       }
-      
+
       // Clean up manual height interval if it exists
       if (this.manualHeightInterval) {
         clearInterval(this.manualHeightInterval);
         this.manualHeightInterval = null;
       }
-      
+
       // Clean up any remaining timers or intervals
       this.cleanupAllTimers();
-      
+
       console.log('MermaidRenderer component unmounted and cleaned up successfully');
-      
+
     } catch (error) {
       console.error('Error during component cleanup:', error);
       // Continue with cleanup even if some parts fail
@@ -278,7 +289,7 @@ export default defineComponent({
   methods: {
     initCodeMirror() {
       const self = this;
-      
+
       // Custom keymap for keyboard shortcuts
       const customKeymap = keymap.of([
         indentWithTab,
@@ -286,18 +297,18 @@ export default defineComponent({
           key: 'Ctrl-s',
           mac: 'Cmd-s',
           run: () => {
-            self.handleKeyboardShortcuts({ ctrlKey: true, key: 's', preventDefault: () => {} });
+            self.handleKeyboardShortcuts({ ctrlKey: true, key: 's', preventDefault: () => { } });
             return true; // Prevent default behavior
           }
         }
       ]);
-      
+
       // Create theme-aware Mermaid syntax highlighting with error handling
       const mermaidHighlighting = this.createMermaidSyntaxHighlighting();
-      
+
       // Create Mermaid language extension with error handling
       const mermaidLanguage = this.createMermaidLanguageExtension();
-      
+
       this.editorView = new EditorView({
         state: EditorState.create({
           doc: this.mermaidText,
@@ -320,7 +331,7 @@ export default defineComponent({
         parent: this.$refs.editor
       });
     },
-    
+
     createMermaidLanguageExtension() {
       // Create Mermaid language extension with enhanced error handling
       try {
@@ -330,7 +341,7 @@ export default defineComponent({
       } catch (error) {
         console.error('Error creating Mermaid language extension:', error);
         console.warn('Falling back to markdown language support');
-        
+
         // Fallback to markdown if Mermaid language fails
         try {
           return markdown();
@@ -341,13 +352,13 @@ export default defineComponent({
         }
       }
     },
-    
+
     createMermaidSyntaxHighlighting() {
       // Create theme-aware syntax highlighting for Mermaid diagrams
       try {
         // Define color schemes based on current theme
         const isDarkTheme = this.theme === 'dark';
-        
+
         // Enhanced color palette for better visual distinction
         const colors = {
           // Primary colors
@@ -357,7 +368,7 @@ export default defineComponent({
           number: isDarkTheme ? '#b5cea8' : '#0550ae',         // Green for numbers
           comment: isDarkTheme ? '#6a9955' : '#6e7781',        // Gray for comments
           operator: isDarkTheme ? '#d4d4d4' : '#24292f',       // Light gray for operators
-          
+
           // Specialized colors
           nodeId: isDarkTheme ? '#4ec9b0' : '#0969da',         // Cyan for node IDs
           nodeText: isDarkTheme ? '#ce9178' : '#032f62',       // Orange for node text
@@ -367,7 +378,7 @@ export default defineComponent({
           message: isDarkTheme ? '#ce9178' : '#032f62',        // Orange for messages
           title: isDarkTheme ? '#569cd6' : '#0969da',          // Blue for titles
         };
-        
+
         // Create comprehensive highlight style with enhanced coverage
         const highlightStyle = HighlightStyle.define([
           // General Mermaid syntax highlighting using standard tags
@@ -379,10 +390,10 @@ export default defineComponent({
           { tag: t.operator, color: colors.operator },
           { tag: t.variableName, color: colors.nodeId },
           { tag: t.propertyName, color: colors.nodeText },
-          
+
           // General Mermaid tags
           { tag: mermaidTags.diagramName, color: colors.diagramType, fontWeight: 'bold' },
-          
+
           // Flowchart-specific highlighting with comprehensive coverage
           { tag: flowchartTags.diagramName, color: colors.diagramType, fontWeight: 'bold' },
           { tag: flowchartTags.keyword, color: colors.keyword },
@@ -395,7 +406,7 @@ export default defineComponent({
           { tag: flowchartTags.string, color: colors.string },
           { tag: flowchartTags.number, color: colors.number },
           { tag: flowchartTags.lineComment, color: colors.comment, fontStyle: 'italic' },
-          
+
           // Sequence diagram-specific highlighting with full coverage
           { tag: sequenceTags.diagramName, color: colors.diagramType, fontWeight: 'bold' },
           { tag: sequenceTags.arrow, color: colors.edge, fontWeight: '500' },
@@ -406,7 +417,7 @@ export default defineComponent({
           { tag: sequenceTags.keyword1, color: colors.keyword },
           { tag: sequenceTags.keyword2, color: colors.keyword },
           { tag: sequenceTags.lineComment, color: colors.comment, fontStyle: 'italic' },
-          
+
           // Pie chart-specific highlighting with complete coverage
           { tag: pieTags.diagramName, color: colors.diagramType, fontWeight: 'bold' },
           { tag: pieTags.title, color: colors.keyword, fontWeight: 'bold' },
@@ -415,14 +426,14 @@ export default defineComponent({
           { tag: pieTags.string, color: colors.string },
           { tag: pieTags.number, color: colors.number },
           { tag: pieTags.lineComment, color: colors.comment, fontStyle: 'italic' },
-          
+
           // Gantt chart-specific highlighting with full coverage
           { tag: ganttTags.diagramName, color: colors.diagramType, fontWeight: 'bold' },
           { tag: ganttTags.keyword, color: colors.keyword },
           { tag: ganttTags.string, color: colors.string },
           { tag: ganttTags.lineComment, color: colors.comment, fontStyle: 'italic' },
         ]);
-        
+
         return syntaxHighlighting(highlightStyle);
       } catch (error) {
         console.error('Error creating Mermaid syntax highlighting:', error);
@@ -441,17 +452,17 @@ export default defineComponent({
         }
       }
     },
-    
+
     updateEditorTheme(newTheme) {
       // Update CodeMirror theme and syntax highlighting when theme changes
       try {
         if (this.editorView) {
           // Create new theme-aware syntax highlighting
           const newMermaidHighlighting = this.createMermaidSyntaxHighlighting();
-          
+
           // Create Mermaid language extension with error handling
           const mermaidLanguage = this.createMermaidLanguageExtension();
-          
+
           // Reconfigure the editor with new theme and highlighting
           this.editorView.dispatch({
             effects: [
@@ -467,7 +478,7 @@ export default defineComponent({
                     key: 'Ctrl-s',
                     mac: 'Cmd-s',
                     run: () => {
-                      this.handleKeyboardShortcuts({ ctrlKey: true, key: 's', preventDefault: () => {} });
+                      this.handleKeyboardShortcuts({ ctrlKey: true, key: 's', preventDefault: () => { } });
                       return true;
                     }
                   }
@@ -483,7 +494,7 @@ export default defineComponent({
               ])
             ]
           });
-          
+
           console.log(`Updated CodeMirror theme to: ${newTheme} with enhanced Mermaid support`);
         }
       } catch (error) {
@@ -491,7 +502,7 @@ export default defineComponent({
         // Continue with existing theme if update fails
       }
     },
-    
+
     // New initialization methods for enhanced lifecycle management
     initKeyboardShortcuts() {
       // Initialize global keyboard shortcuts if needed
@@ -506,75 +517,75 @@ export default defineComponent({
         // Continue without global shortcuts
       }
     },
-    
+
     initFileSystemFeatures() {
       // Initialize File System Access API features
       try {
         // Check browser compatibility and log status
         const isSupported = this.isFileSystemAccessSupported();
         console.log('File System Access API supported:', isSupported);
-        
+
         // Initialize file state tracking
         this.updateDocumentTitle();
-        
+
         // Set up beforeunload handler to warn about unsaved changes
         window.addEventListener('beforeunload', this.handleBeforeUnload);
-        
+
         console.log('File system features initialized');
       } catch (error) {
         console.error('Error initializing file system features:', error);
         // Continue with reduced functionality
       }
     },
-    
+
     initNotificationSystem() {
       // Initialize the notification system
       try {
         // Ensure notification state is properly initialized
         this.notification.show = false;
         this.notification.timeout = null;
-        
+
         console.log('Notification system initialized');
       } catch (error) {
         console.error('Error initializing notification system:', error);
         // Continue without notifications
       }
     },
-    
+
     initMobileResponsiveness() {
       // Initialize mobile responsiveness features
       try {
         // Detect initial mobile state
         this.updateMobileState();
-        
+
         // Add orientation change listener
         window.addEventListener('orientationchange', this.handleOrientationChange);
-        
+
         // Add resize listener for mobile state updates
         window.addEventListener('resize', this.debounce(this.updateMobileState, 100));
-        
+
         // Add touch event listeners for mobile split bar
         this.initTouchEvents();
-        
+
         console.log('Mobile responsiveness initialized');
       } catch (error) {
         console.error('Error initializing mobile responsiveness:', error);
         // Continue with reduced mobile functionality
       }
     },
-    
+
     updateMobileState() {
       // Update mobile and landscape state based on screen size
       try {
         this.screenWidth = window.innerWidth;
         this.isMobile = window.innerWidth <= 768;
         this.isLandscape = window.innerWidth > window.innerHeight;
-        
+
         // Adjust editor layout for mobile
         if (this.isMobile) {
           this.adjustMobileLayout();
         }
-        
+
         // Force editor height recalculation on mobile state change
         this.$nextTick(() => {
           this.recalculateEditorHeight();
@@ -583,7 +594,7 @@ export default defineComponent({
         console.error('Error updating mobile state:', error);
       }
     },
-    
+
     adjustMobileLayout() {
       // Adjust layout specifically for mobile devices
       try {
@@ -593,16 +604,16 @@ export default defineComponent({
           const availableHeight = window.innerHeight;
           const notificationHeight = this.notification.show ? 60 : 0;
           const filenameBarHeight = (this.currentFileName || this.isFileModified) ? 32 : 0;
-          
+
           // Calculate optimal heights for mobile
           const usableHeight = availableHeight - notificationHeight;
           const paneHeight = Math.max(200, (usableHeight - filenameBarHeight) / 2);
-          
+
           // Apply mobile-specific adjustments
           this.$nextTick(() => {
             const editorPane = this.$el?.querySelector('.editor-pane');
             const diagramPane = this.$el?.querySelector('.diagram-pane');
-            
+
             if (editorPane && diagramPane) {
               // Let CSS media queries handle the layout
               // Just ensure proper height calculation
@@ -614,19 +625,19 @@ export default defineComponent({
         console.error('Error adjusting mobile layout:', error);
       }
     },
-    
+
     handleOrientationChange() {
       // Handle device orientation changes
       try {
         // Wait for orientation change to complete
         setTimeout(() => {
           this.updateMobileState();
-          
+
           // Force a complete layout recalculation
           if (this.editorView) {
             this.editorView.requestMeasure();
           }
-          
+
           // Re-render diagram to fit new dimensions
           this.renderDiagram();
         }, 100);
@@ -634,7 +645,7 @@ export default defineComponent({
         console.error('Error handling orientation change:', error);
       }
     },
-    
+
     initTouchEvents() {
       // Initialize touch events for mobile split bar interaction
       try {
@@ -648,7 +659,7 @@ export default defineComponent({
         console.error('Error initializing touch events:', error);
       }
     },
-    
+
     handleTouchStart(event) {
       // Handle touch start on split bar
       try {
@@ -656,7 +667,7 @@ export default defineComponent({
           event.preventDefault();
           const touch = event.touches[0];
           this.touchStartY = touch.clientY;
-          
+
           // Store initial heights for vertical split on mobile
           const editorPane = this.$el?.querySelector('.editor-pane');
           if (editorPane) {
@@ -667,7 +678,7 @@ export default defineComponent({
         console.error('Error handling touch start:', error);
       }
     },
-    
+
     handleTouchMove(event) {
       // Handle touch move on split bar (mobile vertical resize)
       try {
@@ -675,20 +686,20 @@ export default defineComponent({
           event.preventDefault();
           const touch = event.touches[0];
           const deltaY = touch.clientY - this.touchStartY;
-          
+
           // Calculate new heights for vertical split
           const containerHeight = this.$el?.offsetHeight || window.innerHeight;
           const newEditorHeight = Math.max(100, Math.min(containerHeight - 200, this.touchStartHeight + deltaY));
           const newDiagramHeight = containerHeight - newEditorHeight;
-          
+
           // Apply new heights
           const editorPane = this.$el?.querySelector('.editor-pane');
           const diagramPane = this.$el?.querySelector('.diagram-pane');
-          
+
           if (editorPane && diagramPane) {
             editorPane.style.height = `${newEditorHeight}px`;
             diagramPane.style.height = `${newDiagramHeight}px`;
-            
+
             // Recalculate editor dimensions
             this.$nextTick(() => {
               this.recalculateEditorHeight();
@@ -699,7 +710,7 @@ export default defineComponent({
         console.error('Error handling touch move:', error);
       }
     },
-    
+
     handleTouchEnd(event) {
       // Handle touch end on split bar
       try {
@@ -707,7 +718,7 @@ export default defineComponent({
           event.preventDefault();
           this.touchStartY = 0;
           this.touchStartHeight = 0;
-          
+
           // Force final layout recalculation
           this.$nextTick(() => {
             this.recalculateEditorHeight();
@@ -718,7 +729,7 @@ export default defineComponent({
         console.error('Error handling touch end:', error);
       }
     },
-    
+
     initResizeObserver() {
       // Initialize ResizeObserver for dynamic height updates with comprehensive error handling
       try {
@@ -733,7 +744,7 @@ export default defineComponent({
               this.fallbackHeightCalculation();
             }
           });
-          
+
           // Observe the main editor container for size changes
           if (this.$el) {
             try {
@@ -758,7 +769,7 @@ export default defineComponent({
         this.initWindowResizeFallback();
       }
     },
-    
+
     initWindowResizeFallback() {
       // Fallback for browsers that don't support ResizeObserver with enhanced error handling
       try {
@@ -771,7 +782,7 @@ export default defineComponent({
             this.fallbackHeightCalculation();
           }
         }, 150);
-        
+
         window.addEventListener('resize', this.windowResizeHandler);
         console.log('Window resize fallback initialized successfully');
       } catch (error) {
@@ -780,7 +791,7 @@ export default defineComponent({
         this.initManualHeightFallback();
       }
     },
-    
+
     handleContainerResize(entries) {
       // Handle ResizeObserver entries with debouncing and error handling
       try {
@@ -790,12 +801,12 @@ export default defineComponent({
           this.fallbackHeightCalculation();
           return;
         }
-        
+
         // Use debouncing to avoid excessive recalculations
         if (this.resizeDebounceTimer) {
           clearTimeout(this.resizeDebounceTimer);
         }
-        
+
         this.resizeDebounceTimer = setTimeout(() => {
           try {
             this.recalculateEditorHeight();
@@ -810,7 +821,7 @@ export default defineComponent({
         this.fallbackHeightCalculation();
       }
     },
-    
+
     recalculateEditorHeight() {
       // Recalculate and update editor height when container changes with comprehensive error handling
       try {
@@ -835,17 +846,17 @@ export default defineComponent({
           console.error('Error requesting CodeMirror measure:', measureError);
           // Continue with manual height calculation
         }
-        
+
         // Additional height recalculation with enhanced validation
         const editorPane = editorContainer.closest('.editor-pane');
-        
+
         if (editorPane) {
           try {
             const filenameBar = editorPane.querySelector('.editor-filename-bar');
             const paneHeight = editorPane.clientHeight;
             const filenameBarHeight = filenameBar ? filenameBar.offsetHeight : 0;
             const availableHeight = paneHeight - filenameBarHeight;
-            
+
             // Validate calculated height
             if (availableHeight > 50 && availableHeight < window.innerHeight) {
               editorContainer.style.height = `${availableHeight}px`;
@@ -872,7 +883,7 @@ export default defineComponent({
       // JavaScript-based fallback height calculation for unsupported browsers or CSS failures
       try {
         console.log('Attempting fallback height calculation');
-        
+
         if (!this.$refs.editor) {
           console.error('Editor element not available for fallback calculation');
           return;
@@ -880,7 +891,7 @@ export default defineComponent({
 
         const editorContainer = this.$refs.editor;
         const editorPane = editorContainer.closest('.editor-pane');
-        
+
         if (!editorPane) {
           // Last resort: use viewport-based calculation
           const viewportHeight = window.innerHeight;
@@ -894,9 +905,9 @@ export default defineComponent({
         const containerRect = this.$el.getBoundingClientRect();
         const paneRect = editorPane.getBoundingClientRect();
         const filenameBar = editorPane.querySelector('.editor-filename-bar');
-        
+
         let calculatedHeight;
-        
+
         if (this.isMobile) {
           // Mobile-specific fallback calculation
           calculatedHeight = Math.max(150, window.innerHeight * 0.3);
@@ -913,7 +924,7 @@ export default defineComponent({
           editorContainer.style.height = `${calculatedHeight}px`;
           editorContainer.style.minHeight = '150px';
           editorContainer.style.maxHeight = '80vh';
-          
+
           // Force CodeMirror refresh if available
           if (this.editorView) {
             try {
@@ -922,13 +933,13 @@ export default defineComponent({
               console.warn('Could not refresh CodeMirror after fallback height calculation');
             }
           }
-          
+
           console.log(`Applied JavaScript fallback height: ${calculatedHeight}px`);
         } else {
           console.error(`Invalid fallback height calculated: ${calculatedHeight}px`);
           this.emergencyHeightFallback();
         }
-        
+
       } catch (error) {
         console.error('Error in fallback height calculation:', error);
         this.emergencyHeightFallback();
@@ -939,16 +950,16 @@ export default defineComponent({
       // Emergency fallback for when all height calculations fail
       try {
         console.log('Applying emergency height fallback');
-        
+
         if (this.$refs.editor) {
           // Apply fixed height as absolute last resort
           const emergencyHeight = this.isMobile ? '200px' : '400px';
           this.$refs.editor.style.height = emergencyHeight;
           this.$refs.editor.style.minHeight = '150px';
           this.$refs.editor.style.overflow = 'auto';
-          
+
           console.log(`Applied emergency height: ${emergencyHeight}`);
-          
+
           // Show user notification about degraded functionality
           this.showWarningMessage('Editor height calculation failed. Using fixed height. Try refreshing the page if the editor appears too small.');
         }
@@ -963,13 +974,13 @@ export default defineComponent({
       // Manual height calculation fallback using periodic checks
       try {
         console.log('Initializing manual height fallback with periodic checks');
-        
+
         // Set up periodic height checks as absolute last resort
         const manualHeightInterval = setInterval(() => {
           try {
             if (this.$refs.editor && this.editorView) {
               const currentHeight = this.$refs.editor.offsetHeight;
-              
+
               // Check if height seems unreasonably small
               if (currentHeight < 100) {
                 console.warn('Detected abnormally small editor height, attempting correction');
@@ -983,7 +994,7 @@ export default defineComponent({
 
         // Store interval ID for cleanup
         this.manualHeightInterval = manualHeightInterval;
-        
+
         // Clean up after 60 seconds to avoid infinite checking
         setTimeout(() => {
           if (this.manualHeightInterval) {
@@ -992,7 +1003,7 @@ export default defineComponent({
             console.log('Manual height fallback checks completed');
           }
         }, 60000);
-        
+
       } catch (error) {
         console.error('Error initializing manual height fallback:', error);
       }
@@ -1039,11 +1050,11 @@ export default defineComponent({
       try {
         const testKey = '__localStorage_test__';
         const testValue = 'test';
-        
+
         localStorage.setItem(testKey, testValue);
         const retrieved = localStorage.getItem(testKey);
         localStorage.removeItem(testKey);
-        
+
         return retrieved === testValue;
       } catch (error) {
         console.warn('localStorage not available:', error.message);
@@ -1096,10 +1107,10 @@ export default defineComponent({
 
         const newDataSize = dataString.length;
         const estimatedTotal = currentSize + newDataSize;
-        
+
         // Most browsers have a 5-10MB limit for localStorage
         const storageLimit = 5 * 1024 * 1024; // 5MB conservative estimate
-        
+
         if (estimatedTotal > storageLimit * 0.9) { // Use 90% as threshold
           console.warn('Approaching storage quota limit:', estimatedTotal, 'bytes');
           return false;
@@ -1127,7 +1138,7 @@ export default defineComponent({
       // Handle storage quota exceeded by cleaning up old data
       try {
         console.log('Attempting to free up storage space');
-        
+
         // Find and remove old auto-save entries
         const keysToRemove = [];
         const currentTime = Date.now();
@@ -1173,7 +1184,7 @@ export default defineComponent({
     handleLocalStorageError(error, operation) {
       // Centralized localStorage error handling
       console.error(`localStorage error during ${operation}:`, error);
-      
+
       let errorMessage = `Failed to ${operation}`;
       let showNotification = true;
 
@@ -1182,24 +1193,24 @@ export default defineComponent({
           errorMessage = 'Storage space is full. Auto-save has been disabled.';
           this.handleStorageQuotaExceeded();
           break;
-          
+
         case 'SecurityError':
           errorMessage = 'Storage access denied by browser security settings.';
           break;
-          
+
         case 'InvalidStateError':
           errorMessage = 'Storage is in an invalid state. Please refresh the page.';
           break;
-          
+
         case 'DataError':
           errorMessage = 'Data corruption detected in storage.';
           this.handleCorruptedStorage();
           break;
-          
+
         case 'NotSupportedError':
           errorMessage = 'Storage not supported in this browser.';
           break;
-          
+
         default:
           if (error.message.includes('quota')) {
             errorMessage = 'Storage quota exceeded. Please free up space.';
@@ -1225,9 +1236,9 @@ export default defineComponent({
       // Handle corrupted localStorage data
       try {
         console.log('Attempting to recover from corrupted storage');
-        
+
         const corruptedKeys = [];
-        
+
         // Check all mermaid-related keys for corruption
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -1275,7 +1286,7 @@ export default defineComponent({
       try {
         if (!this.isLocalStorageAvailable()) {
           const fallback = this.createStorageFallback();
-          
+
           switch (operation) {
             case 'getItem':
               return fallback.get(key) || null;
@@ -1307,7 +1318,7 @@ export default defineComponent({
         return null;
       }
     },
-    
+
     debounce(func, wait) {
       // Utility function for debouncing
       let timeout;
@@ -1320,14 +1331,14 @@ export default defineComponent({
         timeout = setTimeout(later, wait);
       };
     },
-    
+
     // File hash generation utility methods
     async generateFileHash(content, fileName = null) {
       // Generate SHA-256 based hash for file content
       try {
         // Create hash input combining content and metadata
         const hashInput = this.createHashInput(content, fileName);
-        
+
         // Use Web Crypto API for SHA-256 hashing
         if ('crypto' in window && 'subtle' in window.crypto) {
           const encoder = new TextEncoder();
@@ -1335,7 +1346,7 @@ export default defineComponent({
           const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
           const hashArray = Array.from(new Uint8Array(hashBuffer));
           const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-          
+
           // Return first 16 characters for storage key (sufficient for uniqueness)
           return hashHex.substring(0, 16);
         } else {
@@ -1348,50 +1359,50 @@ export default defineComponent({
         return this.generateFallbackHash(content, fileName);
       }
     },
-    
+
     createHashInput(content, fileName) {
       // Create consistent hash input combining content and metadata
       const timestamp = Date.now();
       const contentLength = content.length;
       const fileNamePart = fileName || 'untitled';
-      
+
       // Combine content with metadata for more unique hash
       return `${content}|${fileNamePart}|${contentLength}|${timestamp}`;
     },
-    
+
     generateSimpleHash(input) {
       // Simple hash function fallback for browsers without Web Crypto API
       let hash = 0;
       if (input.length === 0) return '0000000000000000';
-      
+
       for (let i = 0; i < input.length; i++) {
         const char = input.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
         hash = hash & hash; // Convert to 32-bit integer
       }
-      
+
       // Convert to positive hex string with padding
       const hashHex = Math.abs(hash).toString(16).padStart(8, '0');
       return hashHex.padEnd(16, '0').substring(0, 16);
     },
-    
+
     generateFallbackHash(content, fileName) {
       // Fallback hash generation using timestamp and content length
       const timestamp = Date.now().toString(16);
       const contentHash = content.length.toString(16).padStart(4, '0');
       const fileHash = fileName ? fileName.length.toString(16).padStart(2, '0') : '00';
-      
+
       return `${timestamp.substring(-8)}${contentHash}${fileHash}`.substring(0, 16);
     },
-    
+
     getStorageKey(hash, type = 'autosave') {
       // Generate storage key using file hash
       const validTypes = ['autosave', 'manual'];
       const storageType = validTypes.includes(type) ? type : 'autosave';
-      
+
       return `mermaid-file-${hash}-${storageType}`;
     },
-    
+
     async getCurrentFileHash() {
       // Get hash for current file content
       try {
@@ -1401,36 +1412,36 @@ export default defineComponent({
         return this.generateFallbackHash(this.mermaidText, this.currentFileName);
       }
     },
-    
+
     handleHashCollision(hash, type) {
       // Handle potential hash collisions by appending random suffix
       const randomSuffix = Math.random().toString(36).substring(2, 6);
       const newHash = `${hash.substring(0, 12)}${randomSuffix}`;
-      
+
       console.warn(`Hash collision detected for ${hash}, using ${newHash}`);
       return this.getStorageKey(newHash, type);
     },
-    
+
     // Migration utility methods
     async migrateExistingData() {
       try {
         // Check if there's legacy auto-save data to migrate
         const legacyAutoSave = localStorage.getItem(this.autoSaveKey);
         const legacyManualSave = localStorage.getItem('lastMermaidDiagram');
-        
+
         if (legacyAutoSave || legacyManualSave) {
           console.log('Found legacy localStorage data, starting migration...');
-          
+
           // Migrate auto-save data if it exists
           if (legacyAutoSave) {
             await this.migrateLegacyAutoSave(legacyAutoSave);
           }
-          
+
           // Migrate manual save data if it exists
           if (legacyManualSave) {
             await this.migrateLegacyManualSave(legacyManualSave);
           }
-          
+
           console.log('Legacy data migration completed');
         }
       } catch (error) {
@@ -1438,21 +1449,21 @@ export default defineComponent({
         // Continue without migration - existing functionality will still work
       }
     },
-    
+
     async migrateLegacyAutoSave(legacyData) {
       try {
         const autoSaveData = JSON.parse(legacyData);
-        
+
         if (autoSaveData.content) {
           // Generate hash for the legacy content
           const fileHash = await this.generateFileHash(
-            autoSaveData.content, 
+            autoSaveData.content,
             autoSaveData.fileName || null
           );
-          
+
           // Create new storage key
           const newStorageKey = this.getStorageKey(fileHash, 'autosave');
-          
+
           // Check if new key already exists to avoid overwriting
           const existingData = localStorage.getItem(newStorageKey);
           if (!existingData) {
@@ -1465,18 +1476,18 @@ export default defineComponent({
         console.error('Error migrating legacy auto-save data:', error);
       }
     },
-    
+
     async migrateLegacyManualSave(legacyData) {
       try {
         const manualSaveData = JSON.parse(legacyData);
-        
+
         if (manualSaveData.code) {
           // Generate hash for the legacy content
           const fileHash = await this.generateFileHash(manualSaveData.code, null);
-          
+
           // Create new storage key for manual save
           const newStorageKey = this.getStorageKey(fileHash, 'manual');
-          
+
           // Check if new key already exists to avoid overwriting
           const existingData = localStorage.getItem(newStorageKey);
           if (!existingData) {
@@ -1486,7 +1497,7 @@ export default defineComponent({
               timestamp: Date.now(),
               fileName: null
             };
-            
+
             localStorage.setItem(newStorageKey, JSON.stringify(newManualSaveData));
             console.log(`Migrated manual save data to key: ${newStorageKey}`);
           }
@@ -1495,33 +1506,33 @@ export default defineComponent({
         console.error('Error migrating legacy manual save data:', error);
       }
     },
-    
+
     async completeMigration(autoSaveData) {
       try {
         // This method is called when auto-save data was loaded from legacy key
         // and needs to be migrated to the new hash-based key
-        
+
         if (autoSaveData.content) {
           // Generate hash for the content
           const fileHash = await this.generateFileHash(
-            autoSaveData.content, 
+            autoSaveData.content,
             autoSaveData.fileName || null
           );
-          
+
           // Create new storage key
           const newStorageKey = this.getStorageKey(fileHash, 'autosave');
-          
+
           // Remove the migration flag and save to new key
           const cleanedData = { ...autoSaveData };
           delete cleanedData._needsMigration;
-          
+
           localStorage.setItem(newStorageKey, JSON.stringify(cleanedData));
-          
+
           // Update current file hash
           this.currentFileHash = fileHash;
-          
+
           console.log(`Completed migration of auto-save data to key: ${newStorageKey}`);
-          
+
           // Optionally remove legacy data after successful migration
           // We'll keep it for now to ensure backward compatibility
         }
@@ -1529,7 +1540,7 @@ export default defineComponent({
         console.error('Error completing auto-save data migration:', error);
       }
     },
-    
+
     // Cleanup methods for enhanced lifecycle management
     cleanupKeyboardShortcuts() {
       try {
@@ -1540,31 +1551,31 @@ export default defineComponent({
         console.error('Error cleaning up keyboard shortcuts:', error);
       }
     },
-    
+
     cleanupAllTimers() {
       try {
         // Clean up any remaining timers that might have been missed
         const timerProperties = ['autoSaveTimer', 'debounceTimer'];
-        
+
         timerProperties.forEach(prop => {
           if (this[prop]) {
             clearTimeout(this[prop]);
             this[prop] = null;
           }
         });
-        
+
         console.log('All timers cleaned up');
       } catch (error) {
         console.error('Error cleaning up timers:', error);
       }
     },
-    
+
     handleGlobalKeyboardShortcuts(event) {
       // Handle global keyboard shortcuts that need to work outside the editor
       try {
         // Currently, most shortcuts are handled within CodeMirror
         // This is for future expansion if needed
-        
+
         // Example: Handle Escape key to hide notifications
         if (event.key === 'Escape' && this.notification.show) {
           this.hideNotification();
@@ -1574,7 +1585,7 @@ export default defineComponent({
         console.error('Error handling global keyboard shortcut:', error);
       }
     },
-    
+
     handleBeforeUnload(event) {
       // Warn user about unsaved changes before leaving the page
       try {
@@ -1588,7 +1599,7 @@ export default defineComponent({
         console.error('Error handling beforeunload:', error);
       }
     },
-    
+
     loadDefault() {
       this.mermaidText = this.getDefaultText();
       if (this.editorView) {
@@ -1597,7 +1608,7 @@ export default defineComponent({
         });
       }
       this.renderDiagram();
-      
+
       // Initialize file state for default content
       this.lastSavedContent = this.mermaidText;
       this.updateFileState();
@@ -1618,7 +1629,7 @@ export default defineComponent({
         this.$refs.diagramContainer.innerHTML = svg;
       } catch (error) {
         console.error('Mermaid rendering error:', error);
-        
+
         // Create user-friendly error message based on error type
         let errorMessage = 'Diagram syntax error';
         if (error.message) {
@@ -1626,8 +1637,8 @@ export default defineComponent({
           const cleanMessage = error.message.replace(/^Error: /, '').replace(/\n.*$/, '');
           errorMessage = `Syntax error: ${cleanMessage}`;
         }
-        
-        this.$refs.diagramContainer.innerHTML = 
+
+        this.$refs.diagramContainer.innerHTML =
           `<div class="error">
             <strong>Unable to render diagram</strong><br>
             ${errorMessage}<br>
@@ -1646,7 +1657,7 @@ export default defineComponent({
       if (this.autoSaveTimer) {
         clearTimeout(this.autoSaveTimer);
       }
-      
+
       // Set new timer with 2-second debounce
       this.autoSaveTimer = setTimeout(async () => {
         await this.saveAutoSaveData();
@@ -1665,7 +1676,7 @@ export default defineComponent({
           timestamp: Date.now(),
           fileName: this.currentFileName || null
         };
-        
+
         // Validate data before saving
         if (!this.validateAutoSaveData(autoSaveData)) {
           console.warn('Invalid auto-save data, skipping save');
@@ -1676,25 +1687,25 @@ export default defineComponent({
         const fileHash = await this.getCurrentFileHash();
         const storageKey = this.getStorageKey(fileHash, 'autosave');
         const dataString = JSON.stringify(autoSaveData);
-        
+
         // Check storage quota before saving
         if (!this.checkStorageQuota(dataString)) {
           console.warn('Insufficient storage space for auto-save');
           this.handleStorageQuotaExceeded();
           return;
         }
-        
+
         localStorage.setItem(storageKey, dataString);
-        
+
         // Also store the current hash for migration purposes
         this.currentFileHash = fileHash;
-        
+
         // Verify the data was saved correctly
         if (!this.verifyStoredData(storageKey, dataString)) {
           console.error('Auto-save data verification failed');
           this.showWarningMessage('Auto-save may have failed. Please save manually to ensure your work is preserved.');
         }
-        
+
       } catch (error) {
         this.handleLocalStorageError(error, 'auto-save');
       }
@@ -1709,7 +1720,7 @@ export default defineComponent({
 
         let storageKey;
         let autoSaveData = null;
-        
+
         if (fileHash) {
           // Load auto-save data for specific file hash
           storageKey = this.getStorageKey(fileHash, 'autosave');
@@ -1737,7 +1748,7 @@ export default defineComponent({
               }
             }
           }
-          
+
           // Fallback to legacy auto-save key for migration
           if (!autoSaveData) {
             const legacySaved = this.safeLocalStorageOperation('getItem', this.autoSaveKey);
@@ -1753,7 +1764,7 @@ export default defineComponent({
             }
           }
         }
-        
+
         if (autoSaveData) {
           // Validate the loaded data structure
           if (!this.validateAutoSaveData(autoSaveData)) {
@@ -1769,7 +1780,7 @@ export default defineComponent({
           // Check if auto-save data is valid and not too old (e.g., older than 7 days)
           const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
           const isStale = autoSaveData.timestamp && (Date.now() - autoSaveData.timestamp > maxAge);
-          
+
           if (isStale) {
             console.log('Auto-save data is stale, removing');
             // Clear stale auto-save data
@@ -1780,7 +1791,7 @@ export default defineComponent({
             }
             return null;
           }
-          
+
           return autoSaveData;
         }
       } catch (error) {
@@ -1792,7 +1803,7 @@ export default defineComponent({
           this.clearAutoSaveData();
         }
       }
-      
+
       return null;
     },
     clearAutoSaveData(fileHash = null) {
@@ -1818,68 +1829,68 @@ export default defineComponent({
         this.handleLocalStorageError(error, 'clear auto-save data');
       }
     },
-    async initAutoSave() {
-      try {
-        // First, attempt to migrate existing localStorage data
-        await this.migrateExistingData();
-        
-        // Check if there's any manually saved content first
-        const manualSave = localStorage.getItem('lastMermaidDiagram');
-        
-        // Only restore auto-save if no manual save exists or if auto-save is newer
-        const autoSaveData = await this.loadAutoSaveData();
-        
-        if (autoSaveData && autoSaveData.content) {
-          let shouldRestoreAutoSave = true;
-          
-          if (manualSave) {
-            try {
-              JSON.parse(manualSave); // Validate manual save data
-              // If manual save exists but auto-save has content and is more recent, prefer auto-save
-              // For now, we'll be conservative and only restore auto-save if no manual save exists
-              shouldRestoreAutoSave = false;
-            } catch (error) {
-              // If manual save is corrupted, restore auto-save
-              shouldRestoreAutoSave = true;
-            }
-          }
-          
-          if (shouldRestoreAutoSave) {
-            // Restore auto-saved content
-            this.mermaidText = autoSaveData.content;
-            this.currentFileName = autoSaveData.fileName;
-            
-            // Update editor with restored content
-            if (this.editorView) {
-              this.editorView.dispatch({
-                changes: { from: 0, to: this.editorView.state.doc.length, insert: this.mermaidText }
-              });
-            }
-            
-            // Render the restored diagram
-            this.renderDiagram();
-            
-            // Initialize file state for restored content
-            this.lastSavedContent = this.mermaidText;
-            this.updateFileState();
-            
-            // Handle migration if needed
-            if (autoSaveData._needsMigration) {
-              await this.completeMigration(autoSaveData);
-            }
-            
-            console.log('Auto-saved content restored');
-          }
-        } else {
-          // No auto-save data, load default content
-          this.loadDefault();
-        }
-      } catch (error) {
-        console.error('Error during auto-save initialization:', error);
-        // Fallback to loading default content
-        this.loadDefault();
-      }
-    },
+    // async initAutoSave() {
+    //   try {
+    //     // First, attempt to migrate existing localStorage data
+    //     await this.migrateExistingData();
+
+    //     // Check if there's any manually saved content first
+    //     const manualSave = localStorage.getItem('lastMermaidDiagram');
+
+    //     // Only restore auto-save if no manual save exists or if auto-save is newer
+    //     const autoSaveData = await this.loadAutoSaveData();
+
+    //     if (autoSaveData && autoSaveData.content) {
+    //       let shouldRestoreAutoSave = true;
+
+    //       if (manualSave) {
+    //         try {
+    //           JSON.parse(manualSave); // Validate manual save data
+    //           // If manual save exists but auto-save has content and is more recent, prefer auto-save
+    //           // For now, we'll be conservative and only restore auto-save if no manual save exists
+    //           shouldRestoreAutoSave = false;
+    //         } catch (error) {
+    //           // If manual save is corrupted, restore auto-save
+    //           shouldRestoreAutoSave = true;
+    //         }
+    //       }
+
+    //       if (shouldRestoreAutoSave) {
+    //         // Restore auto-saved content
+    //         this.mermaidText = autoSaveData.content;
+    //         this.currentFileName = autoSaveData.fileName;
+
+    //         // Update editor with restored content
+    //         if (this.editorView) {
+    //           this.editorView.dispatch({
+    //             changes: { from: 0, to: this.editorView.state.doc.length, insert: this.mermaidText }
+    //           });
+    //         }
+
+    //         // Render the restored diagram
+    //         this.renderDiagram();
+
+    //         // Initialize file state for restored content
+    //         this.lastSavedContent = this.mermaidText;
+    //         this.updateFileState();
+
+    //         // Handle migration if needed
+    //         if (autoSaveData._needsMigration) {
+    //           await this.completeMigration(autoSaveData);
+    //         }
+
+    //         console.log('Auto-saved content restored');
+    //       }
+    //     } else {
+    //       // No auto-save data, load default content
+    //       this.loadDefault();
+    //     }
+    //   } catch (error) {
+    //     console.error('Error during auto-save initialization:', error);
+    //     // Fallback to loading default content
+    //     this.loadDefault();
+    //   }
+    // },
     async saveDiagram() {
       try {
         // Check localStorage availability first
@@ -1890,7 +1901,7 @@ export default defineComponent({
 
         // Generate file hash for current content
         const fileHash = await this.getCurrentFileHash();
-        
+
         // Save to file-specific localStorage key
         const manualSaveKey = this.getStorageKey(fileHash, 'manual');
         const saveData = {
@@ -1898,7 +1909,7 @@ export default defineComponent({
           timestamp: Date.now(),
           fileName: this.currentFileName || null
         };
-        
+
         // Validate save data before storing
         if (!this.validateAutoSaveData(saveData)) {
           this.showErrorMessage('Invalid diagram data. Cannot save.');
@@ -1907,42 +1918,42 @@ export default defineComponent({
 
         const saveDataString = JSON.stringify(saveData);
         const legacyDataString = JSON.stringify({ code: this.mermaidText });
-        
+
         // Check storage quota before saving
         if (!this.checkStorageQuota(saveDataString + legacyDataString)) {
           this.handleStorageQuotaExceeded();
           return;
         }
-        
+
         // Save to file-specific key
         const saveSuccess = this.safeLocalStorageOperation('setItem', manualSaveKey, saveDataString);
         if (!saveSuccess) {
           this.showErrorMessage('Failed to save diagram to storage.');
           return;
         }
-        
+
         // Also save to legacy key for backward compatibility
         const legacySaveSuccess = this.safeLocalStorageOperation('setItem', 'lastMermaidDiagram', legacyDataString);
         if (!legacySaveSuccess) {
           console.warn('Failed to save to legacy key, but main save succeeded');
         }
-        
+
         // Verify the data was saved correctly
         if (!this.verifyStoredData(manualSaveKey, saveDataString)) {
           this.showWarningMessage('Diagram saved but verification failed. Please save to a file as backup.');
         }
-        
+
         // Update file state to reflect that content is now saved
         this.lastSavedContent = this.mermaidText;
         this.isFileModified = false;
         this.currentFileHash = fileHash;
         this.updateDocumentTitle();
-        
+
         // Update auto-save storage to match manual save
         await this.saveAutoSaveData();
-        
+
         this.showSuccessMessage('Diagram saved successfully!');
-        
+
       } catch (error) {
         this.handleLocalStorageError(error, 'save diagram');
       }
@@ -1955,6 +1966,7 @@ export default defineComponent({
         });
       }
       this.renderDiagram();
+
     },
     async loadDiagram() {
       try {
@@ -1968,28 +1980,28 @@ export default defineComponent({
         const legacySaved = this.safeLocalStorageOperation('getItem', 'lastMermaidDiagram');
         let loadedContent = null;
         let loadedData = null;
-        
+
         if (legacySaved) {
           try {
             const legacyData = JSON.parse(legacySaved);
             loadedContent = legacyData.code;
-            
+
             // Validate loaded content
             if (typeof loadedContent !== 'string') {
               throw new Error('Invalid content type in saved data');
             }
-            
+
             // Try to find corresponding file-specific data
             if (loadedContent) {
               const fileHash = await this.generateFileHash(loadedContent, null);
               const manualSaveKey = this.getStorageKey(fileHash, 'manual');
               const fileSpecificSaved = this.safeLocalStorageOperation('getItem', manualSaveKey);
-              
+
               if (fileSpecificSaved) {
                 try {
                   // Use file-specific data if available (more recent format)
                   loadedData = JSON.parse(fileSpecificSaved);
-                  
+
                   // Validate file-specific data structure
                   if (this.validateAutoSaveData(loadedData)) {
                     loadedContent = loadedData.content;
@@ -2009,7 +2021,7 @@ export default defineComponent({
             return;
           }
         }
-        
+
         if (loadedContent && loadedContent.trim()) {
           // Validate content length
           if (loadedContent.length > 1000000) { // 1MB limit
@@ -2023,26 +2035,26 @@ export default defineComponent({
               changes: { from: 0, to: this.editorView.state.doc.length, insert: loadedContent }
             });
           }
-          
+
           // Clear any existing file state since we're loading from localStorage
           this.clearFileState();
-          
+
           // Set the loaded content as the baseline for tracking modifications
           this.lastSavedContent = loadedContent;
-          
+
           // Set filename if available from file-specific data
           if (loadedData && loadedData.fileName && typeof loadedData.fileName === 'string') {
             this.currentFileName = loadedData.fileName;
           }
-          
+
           this.updateFileState();
-          
+
           // Update auto-save storage to match loaded content
           await this.saveAutoSaveData();
-          
+
           this.renderDiagram();
           this.showSuccessMessage('Diagram loaded successfully!');
-          
+
         } else {
           // No saved diagram found, inform user
           this.showInfoMessage('No saved diagram found. Create a new diagram or load a file.');
@@ -2082,16 +2094,16 @@ export default defineComponent({
       try {
         // Check for Ctrl+S (Windows/Linux) or Cmd+S (Mac)
         const isCtrlS = (event.ctrlKey || event.metaKey) && event.key === 's';
-        
+
         if (isCtrlS) {
           event.preventDefault(); // Prevent default browser save behavior
-          
+
           // Use the enhanced save functionality with error handling
           this.saveFileWithErrorHandling();
-          
+
           return true; // Indicate that the shortcut was handled
         }
-        
+
         return false; // Shortcut not handled
       } catch (error) {
         console.error('Error handling keyboard shortcut:', error);
@@ -2099,68 +2111,68 @@ export default defineComponent({
         return false;
       }
     },
-    
+
     // File state tracking methods
     updateFileState() {
       // Check if current content differs from last saved content
       const currentContent = this.mermaidText;
       const hasChanges = currentContent !== this.lastSavedContent;
-      
+
       // Update modification state
       this.isFileModified = hasChanges;
-      
+
       // Update document title with modification indicator
       this.updateDocumentTitle();
     },
-    
+
     updateDocumentTitle() {
       // Get base title (file name or default)
       let baseTitle = this.currentFileName || 'Mermaid Editor';
-      
+
       // Add modification indicator if file is modified
       if (this.isFileModified) {
         baseTitle = '* ' + baseTitle;
       }
-      
+
       // Update document title
       document.title = baseTitle;
     },
-    
+
     setFileState(fileName, fileHandle, content) {
       // Set file information
       this.currentFileName = fileName;
       this.currentFileHandle = fileHandle;
       this.lastSavedContent = content;
       this.isFileModified = false;
-      
+
       // Update UI indicators
       this.updateDocumentTitle();
     },
-    
+
     clearFileState() {
       // Clear file information
       this.currentFileName = null;
       this.currentFileHandle = null;
       this.lastSavedContent = '';
       this.isFileModified = false;
-      
+
       // Update UI indicators
       this.updateDocumentTitle();
     },
-    
+
     // File System Access API integration
     isFileSystemAccessSupported() {
       // Check if File System Access API is supported
       return 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
     },
-    
+
     async loadFile() {
       try {
         if (!this.isFileSystemAccessSupported()) {
           // Fallback for unsupported browsers
           return this.loadFileFallback();
         }
-        
+
         // Use File System Access API
         const [fileHandle] = await window.showOpenFilePicker({
           types: [{
@@ -2172,10 +2184,10 @@ export default defineComponent({
           }],
           multiple: false
         });
-        
+
         const file = await fileHandle.getFile();
         const content = await file.text();
-        
+
         // Update editor content
         this.mermaidText = content;
         if (this.editorView) {
@@ -2183,37 +2195,37 @@ export default defineComponent({
             changes: { from: 0, to: this.editorView.state.doc.length, insert: content }
           });
         }
-        
+
         // Set file state
         this.setFileState(file.name, fileHandle, content);
-        
+
         // Render the diagram
         this.renderDiagram();
-        
+
         // Update auto-save storage to match loaded file
         await this.saveAutoSaveData();
-        
+
         console.log('File loaded successfully:', file.name);
-        
+
       } catch (error) {
         if (error.name === 'AbortError') {
           // User cancelled the file picker
           console.log('File loading cancelled by user');
           return;
         }
-        
+
         console.error('Error loading file:', error);
         alert('Error loading file: ' + error.message);
       }
     },
-    
+
     loadFileFallback() {
       // Fallback method for browsers that don't support File System Access API
       return new Promise(async (resolve, reject) => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.mmd,.mermaid,.txt,.md';
-        
+
         input.onchange = async (event) => {
           try {
             const file = event.target.files[0];
@@ -2221,9 +2233,9 @@ export default defineComponent({
               resolve();
               return;
             }
-            
+
             const content = await file.text();
-            
+
             // Update editor content
             this.mermaidText = content;
             if (this.editorView) {
@@ -2231,36 +2243,36 @@ export default defineComponent({
                 changes: { from: 0, to: this.editorView.state.doc.length, insert: content }
               });
             }
-            
+
             // Set file state (no file handle in fallback mode)
             this.setFileState(file.name, null, content);
-            
+
             // Render the diagram
             this.renderDiagram();
-            
+
             // Update auto-save storage to match loaded file
             await this.saveAutoSaveData();
-            
+
             console.log('File loaded successfully (fallback):', file.name);
             resolve();
-            
+
           } catch (error) {
             console.error('Error loading file (fallback):', error);
             alert('Error loading file: ' + error.message);
             reject(error);
           }
         };
-        
+
         input.oncancel = () => {
           console.log('File loading cancelled by user (fallback)');
           resolve();
         };
-        
+
         // Trigger file picker
         input.click();
       });
     },
-    
+
     // Smart save functionality
     async saveFile() {
       try {
@@ -2276,14 +2288,14 @@ export default defineComponent({
         alert('Error saving file: ' + error.message);
       }
     },
-    
+
     async saveAsFile() {
       try {
         if (!this.isFileSystemAccessSupported()) {
           // Fallback for unsupported browsers
           return this.saveFileFallback();
         }
-        
+
         // Use File System Access API for save-as
         const fileHandle = await window.showSaveFilePicker({
           types: [{
@@ -2295,41 +2307,41 @@ export default defineComponent({
           }],
           suggestedName: this.currentFileName || 'diagram.mmd'
         });
-        
+
         // Write content to file
         const writable = await fileHandle.createWritable();
         await writable.write(this.mermaidText);
         await writable.close();
-        
+
         // Get file info
         const file = await fileHandle.getFile();
-        
+
         // Update file state
         this.setFileState(file.name, fileHandle, this.mermaidText);
-        
+
         // Update auto-save storage
         await this.saveAutoSaveData();
-        
+
         console.log('File saved successfully:', file.name);
         alert('File saved successfully!');
-        
+
       } catch (error) {
         if (error.name === 'AbortError') {
           // User cancelled the save dialog
           console.log('File saving cancelled by user');
           return;
         }
-        
+
         throw error;
       }
     },
-    
+
     async updateExistingFile() {
       try {
         if (!this.currentFileHandle) {
           throw new Error('No file handle available for update');
         }
-        
+
         // Check if we still have permission to write to the file
         const permission = await this.currentFileHandle.queryPermission({ mode: 'readwrite' });
         if (permission !== 'granted') {
@@ -2338,61 +2350,61 @@ export default defineComponent({
             throw new Error('Permission denied to write to file');
           }
         }
-        
+
         // Write content to existing file
         const writable = await this.currentFileHandle.createWritable();
         await writable.write(this.mermaidText);
         await writable.close();
-        
+
         // Update file state (content is now saved)
         this.lastSavedContent = this.mermaidText;
         this.isFileModified = false;
         this.updateDocumentTitle();
-        
+
         // Update auto-save storage
         await this.saveAutoSaveData();
-        
+
         console.log('File updated successfully:', this.currentFileName);
         alert('File updated successfully!');
-        
+
       } catch (error) {
         console.error('Error updating existing file:', error);
-        
+
         // If updating fails, fall back to save-as
         console.log('Falling back to save-as due to update error');
         await this.saveAsFile();
       }
     },
-    
+
     async saveFileFallback() {
       // Fallback method for browsers that don't support File System Access API
       try {
         const blob = new Blob([this.mermaidText], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
-        
+
         const link = document.createElement('a');
         link.href = url;
         link.download = this.currentFileName || 'diagram.mmd';
-        
+
         // Trigger download
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         // Clean up
         URL.revokeObjectURL(url);
-        
+
         // Update file state (mark as saved, but no file handle in fallback)
         this.lastSavedContent = this.mermaidText;
         this.isFileModified = false;
         this.updateDocumentTitle();
-        
+
         // Update auto-save storage
         await this.saveAutoSaveData();
-        
+
         console.log('File downloaded successfully (fallback):', this.currentFileName || 'diagram.mmd');
         this.showSuccessMessage('File downloaded successfully!');
-        
+
       } catch (error) {
         console.error('Error downloading file (fallback):', error);
         this.showErrorMessage('Error downloading file: ' + error.message);
@@ -2425,7 +2437,7 @@ export default defineComponent({
       if (this.notification.timeout) {
         clearTimeout(this.notification.timeout);
       }
-      
+
       // Set notification icons
       const icons = {
         success: '✅',
@@ -2433,13 +2445,13 @@ export default defineComponent({
         warning: '⚠️',
         info: 'ℹ️'
       };
-      
+
       // Update notification state
       this.notification.show = true;
       this.notification.message = message;
       this.notification.type = type;
       this.notification.icon = icons[type] || icons.info;
-      
+
       // Auto-hide notification after duration (except for errors which stay longer)
       const autoHideDuration = type === 'error' ? duration * 2 : duration;
       this.notification.timeout = setTimeout(() => {
@@ -2461,7 +2473,7 @@ export default defineComponent({
         this.initCodeMirror();
       } catch (error) {
         console.error('Error initializing CodeMirror:', error);
-        
+
         // Try to initialize with basic configuration
         try {
           this.initBasicCodeMirror();
@@ -2476,7 +2488,7 @@ export default defineComponent({
     initBasicCodeMirror() {
       // Fallback CodeMirror initialization with minimal configuration
       const self = this;
-      
+
       this.editorView = new EditorView({
         state: EditorState.create({
           doc: this.mermaidText,
@@ -2503,7 +2515,7 @@ export default defineComponent({
         this.showSuccessMessage('File loaded successfully!');
       } catch (error) {
         console.error('Error in loadFileWithErrorHandling:', error);
-        
+
         let errorMessage = 'Failed to load file';
         if (error.name === 'NotAllowedError') {
           errorMessage = 'File access permission denied. Please try again and allow file access.';
@@ -2516,7 +2528,7 @@ export default defineComponent({
         } else if (error.message) {
           errorMessage = `Failed to load file: ${error.message}`;
         }
-        
+
         this.showErrorMessage(errorMessage);
       }
     },
@@ -2526,7 +2538,7 @@ export default defineComponent({
         await this.saveFile();
       } catch (error) {
         console.error('Error in saveFileWithErrorHandling:', error);
-        
+
         let errorMessage = 'Failed to save file';
         if (error.name === 'NotAllowedError') {
           errorMessage = 'File save permission denied. Please try again and allow file access.';
@@ -2539,7 +2551,7 @@ export default defineComponent({
         } else if (error.message) {
           errorMessage = `Failed to save file: ${error.message}`;
         }
-        
+
         this.showErrorMessage(errorMessage);
       }
     },
@@ -2556,51 +2568,51 @@ export default defineComponent({
         const svgData = new XMLSerializer().serializeToString(svg);
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         if (!ctx) {
           throw new Error('Unable to create canvas context for image export');
         }
 
         const img = new Image();
-        
+
         // Use Promise to handle image loading
         await new Promise((resolve, reject) => {
           img.onload = () => {
             try {
               canvas.width = img.width;
               canvas.height = img.height;
-              
+
               // Get computed background color of diagram-container
               const bg = window.getComputedStyle(this.$refs.diagramContainer).backgroundColor || '#ffffff';
               ctx.fillStyle = bg;
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               ctx.drawImage(img, 0, 0);
-              
+
               const png = canvas.toDataURL('image/png');
               const link = document.createElement('a');
               link.download = filename;
               link.href = png;
               link.click();
-              
+
               resolve();
             } catch (drawError) {
               reject(drawError);
             }
           };
-          
+
           img.onerror = () => {
             reject(new Error('Failed to load SVG for image export'));
           };
-          
+
           // Use decodeURIComponent instead of deprecated unescape
           img.src = 'data:image/svg+xml;base64,' + btoa(decodeURIComponent(encodeURIComponent(svgData)));
         });
 
         this.showSuccessMessage('Image exported successfully!');
-        
+
       } catch (error) {
         console.error('Error exporting image:', error);
-        
+
         let errorMessage = 'Failed to export image';
         if (error.message.includes('canvas')) {
           errorMessage = 'Unable to create image canvas. Your browser may not support this feature.';
@@ -2609,7 +2621,7 @@ export default defineComponent({
         } else if (error.message) {
           errorMessage = `Export failed: ${error.message}`;
         }
-        
+
         this.showErrorMessage(errorMessage);
       }
     }
@@ -2627,6 +2639,7 @@ export default defineComponent({
   margin: 0;
   padding: 0;
 }
+
 .split-pane {
   display: flex;
   flex-direction: row;
@@ -2641,6 +2654,7 @@ export default defineComponent({
   padding: 0;
   overflow: hidden;
 }
+
 .pane {
   height: 100%;
   min-width: 0;
@@ -2648,6 +2662,7 @@ export default defineComponent({
   flex-direction: column;
   flex: 1 1 auto;
 }
+
 .editor-pane {
   background: #f5f5ff;
   border-right: 1px solid #ccc;
@@ -2661,6 +2676,7 @@ export default defineComponent({
   margin: 0;
   padding: 0;
 }
+
 .diagram-pane {
   background: #fff;
   min-width: 120px;
@@ -2671,6 +2687,7 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
 }
+
 .split-bar {
   width: 6px;
   background: #bbb;
@@ -2678,12 +2695,16 @@ export default defineComponent({
   z-index: 2;
   transition: background 0.2s;
 }
-.split-bar:hover, .split-bar:active {
+
+.split-bar:hover,
+.split-bar:active {
   background: #888;
 }
+
 .mermaid-codemirror {
   flex: 1 1 auto;
-  height: 0; /* Force flex calculation */
+  height: 0;
+  /* Force flex calculation */
   width: 100%;
   font-size: 1rem;
   border: none;
@@ -2693,6 +2714,7 @@ export default defineComponent({
   padding: 0;
   box-sizing: border-box;
 }
+
 .diagram-container {
   flex: 1;
   border: 1px solid #eee;
@@ -2703,24 +2725,29 @@ export default defineComponent({
   height: 100%;
   box-sizing: border-box;
 }
+
 .error {
   color: #ff4444;
   padding: 1rem;
   background-color: #ffeeee;
   border-radius: 4px;
 }
+
 @media (max-width: 768px) {
   .split-pane {
     flex-direction: column;
     height: 100vh !important;
   }
-  .editor-pane, .diagram-pane {
+
+  .editor-pane,
+  .diagram-pane {
     width: 100% !important;
     min-width: 0;
     max-width: 100%;
     height: calc(50vh - 3px);
     min-height: 150px;
   }
+
   .split-bar {
     width: 100%;
     height: 6px;
@@ -2728,12 +2755,16 @@ export default defineComponent({
     background: #999;
     flex-shrink: 0;
   }
-  .split-bar:hover, .split-bar:active {
+
+  .split-bar:hover,
+  .split-bar:active {
     background: #666;
   }
+
   .mermaid-codemirror {
     font-size: 0.9rem;
   }
+
   .diagram-container {
     padding: 0.5rem;
   }
@@ -2986,6 +3017,7 @@ export default defineComponent({
     transform: translateX(100%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -3020,14 +3052,17 @@ export default defineComponent({
   background-color: thistle;
   color: #222;
 }
+
 .mermaid-theme-dark {
   background-color: #1e1e1e;
   color: #eee;
 }
+
 .mermaid-theme-forest {
   background-color: #e4f1e1;
   color: #234d20;
 }
+
 .mermaid-theme-neutral {
   background-color: #f4f4f4;
   color: #222;
@@ -3042,11 +3077,11 @@ export default defineComponent({
     padding: 5px 10px;
     font-size: 0.82rem;
   }
-  
+
   .filename-info {
     gap: 8px;
   }
-  
+
   .compatibility-warning {
     font-size: 0.72rem;
   }
@@ -3061,22 +3096,22 @@ export default defineComponent({
     flex-wrap: wrap;
     min-height: 28px;
   }
-  
+
   .filename-info {
     gap: 6px;
     flex-wrap: wrap;
     align-items: flex-start;
   }
-  
+
   .filename-text {
     font-size: 0.8rem;
     max-width: 70%;
   }
-  
+
   .modified-indicator {
     font-size: 1em;
   }
-  
+
   .compatibility-warning {
     font-size: 0.7rem;
     padding: 1px 3px;
@@ -3084,7 +3119,7 @@ export default defineComponent({
     order: 2;
     flex-basis: 100%;
   }
-  
+
   .editor-toolbar {
     height: auto;
     min-height: 36px;
@@ -3092,48 +3127,48 @@ export default defineComponent({
     flex-wrap: wrap;
     gap: 8px;
   }
-  
+
   .toolbar-section {
     gap: 4px;
   }
-  
+
   .file-info {
     flex: 1 1 100%;
     order: 1;
   }
-  
+
   .file-operations {
     flex: 1 1 auto;
     order: 2;
     justify-content: flex-start;
     flex-wrap: wrap;
   }
-  
+
   .theme-selection {
     flex: 0 0 auto;
     order: 3;
   }
-  
+
   .toolbar-btn {
     padding: 3px 6px;
     font-size: 0.75rem;
     min-width: auto;
   }
-  
+
   .file-name {
     font-size: 0.8rem;
   }
-  
+
   .theme-select {
     font-size: 0.75rem;
     padding: 3px 6px;
     min-width: 70px;
   }
-  
+
   .theme-label {
     font-size: 0.75rem;
   }
-  
+
   .notification {
     top: 10px;
     right: 10px;
@@ -3151,21 +3186,21 @@ export default defineComponent({
     padding: 3px 6px;
     font-size: 0.75rem;
   }
-  
+
   .filename-text {
     font-size: 0.75rem;
     max-width: 65%;
   }
-  
+
   .modified-indicator {
     font-size: 0.9em;
   }
-  
+
   .compatibility-warning {
     font-size: 0.65rem;
     padding: 1px 2px;
   }
-  
+
   .notification {
     font-size: 0.8rem;
     padding: 10px 12px;
@@ -3179,15 +3214,15 @@ export default defineComponent({
     padding: 2px 6px;
     font-size: 0.75rem;
   }
-  
+
   .filename-info {
     gap: 4px;
   }
-  
+
   .filename-text {
     max-width: 75%;
   }
-  
+
   .compatibility-warning {
     font-size: 0.65rem;
     margin-top: 0;
