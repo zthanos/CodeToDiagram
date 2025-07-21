@@ -52,7 +52,6 @@ export class ProjectManager {
         throw new Error(`Project with name "${name}" already exists`);
       }
 
-      const projectId = id;
       const now = new Date();
 
       // Create default editor settings
@@ -92,7 +91,7 @@ export class ProjectManager {
 
       // Create new project
       const newProject: Project = {
-        id: projectId,
+        id: id,
         name: name.trim(),
         description: description?.trim(),
         createdAt: now,
@@ -100,7 +99,7 @@ export class ProjectManager {
         diagrams: [],
         requirements: [],
         teams: [],
-        tasks:[],
+        tasks: [],
         settings: defaultSettings,
         metadata: defaultMetadata
       };
@@ -167,6 +166,41 @@ export class ProjectManager {
     }
   }
 
+
+  public async loadDiagram(diagramId: number): Promise<Diagram> {
+    try {
+      if (!diagramId) {
+        throw new Error('Diagram ID cannot be empty');
+      }
+
+      if (!this.currentProject) {
+        throw new Error('Project ID cannot be empty');
+      }
+      
+      // Call backend to get project outline
+      const diagram = await ProjectApiService.getDiagram(this.currentProject.id, diagramId);
+
+      return diagram;
+
+    } catch (error) {
+      console.error('Failed to load diagram:', error);
+      throw new Error(`Failed to load diagram: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  public async saveDiagram(projectId: string, diagramId: Number | null, title: string, content: string): Promise<Diagram> {
+    try {
+      if (!diagramId) {
+        return await ProjectApiService.addDiagram(projectId, title, content, "sequence");
+      }
+      else {
+        return await ProjectApiService.updateDiagram(projectId, diagramId, title, content, "sequence");
+      }
+    } catch (error) {
+      throw new Error(`Failed to save diagram: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+  }
 
   /**
    * Save a project to storage

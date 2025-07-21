@@ -51,15 +51,16 @@ export interface DiagramMetadata {
 
 // Main Diagram interface
 export interface Diagram {
-  id: string;
-  name: string;
+  id: Number| null;
+  title: string;
   content: string;
   type: DiagramType;
+  projectId: string;
   filePath?: string;
-  createdAt: Date;
-  lastModified: Date;
-  isModified: boolean;
-  metadata: DiagramMetadata;
+  createdAt?: Date;
+  lastModified?: Date;
+  isModified?: boolean;
+  metadata?: DiagramMetadata;
 }
 
 // Editor settings interface

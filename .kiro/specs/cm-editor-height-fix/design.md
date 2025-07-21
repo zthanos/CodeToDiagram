@@ -2,56 +2,134 @@
 
 ## Overview
 
-This design transforms the application from a single-diagram editor into a comprehensive project-based workspace. The new architecture supports multiple diagrams organized within projects, featuring a collapsible left navigation pane for project management and a tabbed right pane for editing multiple diagrams simultaneously.
+This design transforms the application from a single-diagram editor into a comprehensive project-based workspace with backend integration. The new architecture leverages the Solution Outline Assistant API for project and diagram persistence, implements a modular component structure, and provides a dual-pane interface with collapsible navigation and tabbed editing.
 
-The solution involves creating a new project management system, implementing a dual-pane layout with collapsible navigation, developing a tabbed editor interface, and maintaining all existing editor functionality while adding robust project-level file management capabilities.
+The solution involves integrating with the existing backend API, creating modular components with centralized CSS, implementing a streamlined diagram creation workflow, and maintaining all existing editor functionality while adding robust project-level management capabilities.
 
 ## Architecture
 
 ### Current Architecture Limitations
 - Single-diagram editing interface limits productivity for complex projects
-- No project organization or workspace management capabilities
-- Lack of multi-diagram navigation and management
-- No support for simultaneous editing of multiple related diagrams
-- Limited file organization and project-level operations
+- localStorage-based persistence lacks reliability and cross-device access
+- Monolithic MermaidRenderer component with mixed responsibilities
+- Duplicated CSS across components leading to maintenance issues
+- Interrupting diagram creation workflow with immediate naming requirements
 
-### New Project-Based Architecture
+### New Backend-Integrated Architecture
 The new architecture transforms the application into a comprehensive workspace with the following key components:
 
-1. **Project Management Layer**: Handles project creation, loading, and persistence
-2. **Dual-Pane Layout**: Left navigation pane + right tabbed editor pane
-3. **Navigation System**: Collapsible left pane with project toolbar and diagram list
-4. **Tabbed Editor System**: Multi-tab interface for simultaneous diagram editing
-5. **Enhanced File Management**: Project-scoped file operations and state management
+1. **Backend Integration Layer**: Interfaces with Solution Outline Assistant API
+2. **Modular Component Architecture**: Separated editor component with clean interfaces
+3. **Centralized CSS Management**: Common styles moved to main.css
+4. **Dual-Pane Layout**: Left navigation pane + right tabbed editor pane
+5. **Streamlined Workflow**: Create diagrams immediately, name on first save
 
 ### Architecture Components Overview
 
 ```
 ProjectWorkspace
-├── ProjectManager (handles project CRUD operations)
+├── ProjectApiService (Solution Outline Assistant API client)
+├── MermaidEditorComponent (extracted, reusable editor)
 ├── NavigationPane (left pane)
 │   ├── ProjectToolbar (project name + actions)
-│   └── DiagramList (collapsible diagram navigation)
+│   └── DiagramList (backend-loaded diagram list)
 └── EditorPane (right pane)
     ├── TabManager (manages multiple editor tabs)
-    └── MermaidEditor[] (array of editor instances)
+    └── MermaidRenderer[] (uses MermaidEditorComponent)
 ```
+
+### Backend API Integration
+
+**Solution Outline Assistant API Endpoints:**
+- `POST /projects/create` - Create new projects
+- `GET /projects/list` - List all projects
+- `GET /projects/{project_id}/outline` - Get project with diagrams
+- `POST /projects/{project_id}/diagrams/add` - Add diagram to project
+- `GET /projects/{project_id}/diagrams/list` - List project diagrams
+- `GET /projects/{project_id}/diagrams/{diagram_id}` - Get specific diagram
+- `DELETE /projects/{project_id}/diagrams/{diagram_id}/delete` - Delete diagram
 
 ## Components and Interfaces
 
-### 1. New Project-Based Layout Structure
+### 1. Backend API Service Layer
 
-**Current Single-Editor Structure:**
+**ProjectApiService Interface:**
+```typescript
+interface ProjectApiService {
+  // Project operations
+  createProject(data: ProjectCreate): Promise<ProjectResponse>;
+  listProjects(): Promise<ProjectResponse[]>;
+  getProjectOutline(projectId: number): Promise<ProjectOutlineResponse>;
+  
+  // Diagram operations
+  addDiagram(projectId: number, data: DiagramCreate): Promise<DiagramResponse>;
+  listDiagrams(projectId: number): Promise<DiagramResponse[]>;
+  getDiagram(projectId: number, diagramId: number): Promise<DiagramResponse>;
+  deleteDiagram(projectId: number, diagramId: number): Promise<void>;
+}
+
+// API Data Models (matching backend schema)
+interface ProjectCreate {
+  name: string;
+  description?: string;
+}
+
+interface DiagramCreate {
+  title: string;
+  mermaid_code: string;
+  type: DiagramType; // 'Flowchart' | 'Sequence' | 'Gantt'
+}
+
+interface DiagramResponse {
+  id: number;
+  title: string;
+  mermaid_code: string;
+  type: DiagramType;
+}
 ```
-.app-layout
-├── .app-header
-└── .app-main
-    └── .mermaid-editor (single editor)
-        ├── .notification
-        └── .split-pane
-            ├── .editor-pane
-            └── .diagram-pane
+
+### 2. Modular Editor Component Architecture
+
+**MermaidEditorComponent Interface:**
+```typescript
+interface MermaidEditorComponent {
+  // Core editor functionality
+  content: string;
+  onChange: (content: string) => void;
+  onSave?: () => void;
+  
+  // Editor configuration
+  theme?: string;
+  readOnly?: boolean;
+  height?: string | number;
+  
+  // Editor state
+  cursorPosition?: CursorPosition;
+  scrollPosition?: ScrollPosition;
+  
+  // Methods
+  focus(): void;
+  getContent(): string;
+  setContent(content: string): void;
+  insertText(text: string): void;
+}
+
+// Extracted from MermaidRenderer
+interface MermaidRenderer {
+  // Uses MermaidEditorComponent
+  editorComponent: MermaidEditorComponent;
+  
+  // Diagram rendering
+  diagramContent: string;
+  renderDiagram(): void;
+  
+  // Split pane management
+  splitRatio: number;
+  onSplitChange: (ratio: number) => void;
+}
 ```
+
+### 3. Project Workspace Layout Structure
 
 **New Project Workspace Structure:**
 ```
@@ -64,7 +142,6 @@ ProjectWorkspace
         │   │   ├── .project-name
         │   │   └── .project-actions
         │   │       ├── .create-project-btn
-        │   │       ├── .add-diagram-btn
         │   │       └── .create-diagram-btn
         │   └── .diagram-list
         │       └── .diagram-item[]
@@ -73,267 +150,243 @@ ProjectWorkspace
             ├── .tab-bar
             │   └── .editor-tab[]
             │       ├── .tab-title
+            │       ├── .tab-modified-indicator
             │       └── .tab-close-btn
             └── .tab-content
-                └── .mermaid-editor-instance
-                    ├── .editor-toolbar
-                    └── .split-pane
-                        ├── .code-editor
-                        └── .diagram-preview
+                └── .mermaid-renderer
+                    └── .mermaid-editor-component
+                        └── .split-pane
+                            ├── .code-editor (full height)
+                            └── .diagram-preview
 ```
 
-### 2. Core Component Interfaces
+### 4. Core Component Interfaces
 
 **Project Management Interface:**
-```javascript
+```typescript
 interface ProjectManager {
-  // Project CRUD operations
-  createProject(name: string): Promise<Project>;
-  loadProject(projectId: string): Promise<Project>;
-  saveProject(project: Project): Promise<void>;
-  deleteProject(projectId: string): Promise<void>;
+  // Backend integration
+  apiService: ProjectApiService;
   
-  // Project state management
-  getCurrentProject(): Project | null;
-  setCurrentProject(project: Project): void;
-  getProjectList(): Promise<Project[]>;
+  // Project operations
+  createProject(name: string, description?: string): Promise<ProjectResponse>;
+  loadProject(projectId: number): Promise<ProjectOutlineResponse>;
+  getCurrentProject(): ProjectOutlineResponse | null;
+  setCurrentProject(project: ProjectOutlineResponse): void;
+  getProjectList(): Promise<ProjectResponse[]>;
 }
 
 interface Project {
-  id: string;
+  id: number;
   name: string;
-  createdAt: Date;
-  lastModified: Date;
-  diagrams: Diagram[];
-  metadata: ProjectMetadata;
-}
-
-interface Diagram {
-  id: string;
-  name: string;
-  content: string;
-  filePath?: string;
-  lastModified: Date;
-  isModified: boolean;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  diagrams: DiagramResponse[];
 }
 ```
 
 **Navigation Pane Interface:**
-```javascript
+```typescript
 interface NavigationPane {
   // Visibility control
   isCollapsed: boolean;
   toggleCollapse(): void;
   
   // Project toolbar
-  projectName: string;
+  currentProject: ProjectResponse | null;
   onCreateProject(): void;
-  onAddDiagram(): void;
   onCreateDiagram(): void;
   
-  // Diagram list
-  diagrams: Diagram[];
-  selectedDiagram: string | null;
-  onDiagramSelect(diagramId: string): void;
-  onDiagramRename(diagramId: string, newName: string): void;
-  onDiagramDelete(diagramId: string): void;
+  // Diagram list (loaded from backend)
+  diagrams: DiagramResponse[];
+  selectedDiagramId: number | null;
+  onDiagramSelect(diagramId: number): void;
+  onDiagramDelete(diagramId: number): void;
+  
+  // Loading states
+  isLoadingDiagrams: boolean;
+  diagramsError: string | null;
 }
 ```
 
 **Tab Manager Interface:**
-```javascript
+```typescript
 interface TabManager {
   // Tab management
   openTabs: EditorTab[];
   activeTabId: string | null;
   
   // Tab operations
-  openTab(diagram: Diagram): EditorTab;
+  openTab(diagram: DiagramResponse): EditorTab;
   closeTab(tabId: string): void;
   switchToTab(tabId: string): void;
   closeAllTabs(): void;
   
   // Tab state
-  getTabByDiagramId(diagramId: string): EditorTab | null;
+  getTabByDiagramId(diagramId: number): EditorTab | null;
   isTabModified(tabId: string): boolean;
   saveTab(tabId: string): Promise<void>;
 }
 
 interface EditorTab {
   id: string;
-  diagramId: string;
+  diagramId: number;
   title: string;
   isModified: boolean;
   isActive: boolean;
-  editorInstance: MermaidEditor;
+  isUntitled: boolean; // for new diagrams not yet named
+  editorInstance: MermaidRenderer;
 }
 ```
 
-### 3. Enhanced File Management System
+### 5. Centralized CSS Management
 
-**Project-Scoped File Management:**
-```javascript
-interface ProjectFileManager extends FileHashManager {
-  // Project-level operations
-  loadProjectFiles(projectId: string): Promise<Diagram[]>;
-  saveProjectFiles(projectId: string, diagrams: Diagram[]): Promise<void>;
-  
-  // Diagram operations within project
-  addExistingDiagram(projectId: string, filePath: string): Promise<Diagram>;
-  createNewDiagram(projectId: string, name: string): Promise<Diagram>;
-  deleteDiagram(projectId: string, diagramId: string): Promise<void>;
-  
-  // File system integration
-  exportProject(project: Project): Promise<void>;
-  importProject(filePath: string): Promise<Project>;
-}
-```
-
-### 4. Responsive Layout System
-
-**CSS Grid Layout for Project Workspace:**
+**Common Styles Structure:**
 ```css
-.project-workspace {
-  display: grid;
-  grid-template-columns: var(--nav-width, 300px) 1fr;
-  grid-template-rows: 1fr;
-  height: 100vh;
-  transition: grid-template-columns 0.3s ease;
+/* main.css - Centralized common styles */
+
+/* Layout utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1; }
+.grid { display: grid; }
+
+/* Spacing utilities */
+.p-2 { padding: 0.5rem; }
+.p-4 { padding: 1rem; }
+.m-2 { margin: 0.5rem; }
+.gap-2 { gap: 0.5rem; }
+
+/* Button styles */
+.btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--button-bg);
+  color: var(--button-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.project-workspace.nav-collapsed {
-  --nav-width: 0px;
+.btn:hover {
+  background: var(--button-hover-bg);
 }
 
-.navigation-pane {
-  grid-column: 1;
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+/* Tab styles */
+.tab {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--tab-bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tab.active {
+  background: var(--tab-active-bg);
+  border-bottom-color: transparent;
+}
+
+.tab-close {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.tab-close:hover {
+  background: var(--tab-close-hover-bg);
+}
+
+/* Editor height optimization */
+.editor-container {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border-color);
-  overflow: hidden;
 }
 
-.editor-pane {
-  grid-column: 2;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.editor-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.codemirror-wrapper {
+  height: 100%;
+}
+
+.codemirror-wrapper .cm-editor {
+  height: 100%;
 }
 ```
 
-### 5. State Management Architecture
 
-**Centralized State Management:**
-```javascript
-interface WorkspaceState {
-  // Project state
-  currentProject: Project | null;
-  projectList: Project[];
-  
-  // UI state
-  navigationCollapsed: boolean;
-  activeTabId: string | null;
-  openTabs: EditorTab[];
-  
-  // Editor state
-  theme: string;
-  editorSettings: EditorSettings;
-  
-  // Persistence state
-  autoSaveEnabled: boolean;
-  lastSaved: Date | null;
-}
-
-interface WorkspaceActions {
-  // Project actions
-  createProject(name: string): void;
-  loadProject(projectId: string): void;
-  saveCurrentProject(): void;
-  
-  // Navigation actions
-  toggleNavigation(): void;
-  selectDiagram(diagramId: string): void;
-  
-  // Tab actions
-  openDiagram(diagram: Diagram): void;
-  closeTab(tabId: string): void;
-  switchTab(tabId: string): void;
-  
-  // Editor actions
-  updateDiagramContent(diagramId: string, content: string): void;
-  saveDiagram(diagramId: string): void;
-}
-```
 
 ## Data Models
 
-### 1. Project Data Model
-```javascript
-interface Project {
-  id: string;
+### 1. Backend API Data Models (matching Solution Outline Assistant API)
+```typescript
+// API Response Models
+interface ProjectResponse {
+  id: number;
   name: string;
   description?: string;
-  createdAt: Date;
-  lastModified: Date;
-  diagrams: Diagram[];
-  settings: ProjectSettings;
-  metadata: ProjectMetadata;
+  created_at: string;
+  updated_at: string;
 }
 
-interface ProjectSettings {
-  theme: string;
-  autoSave: boolean;
-  defaultDiagramType: string;
-  editorSettings: EditorSettings;
+interface ProjectOutlineResponse extends ProjectResponse {
+  requirements: RequirementResponse[];
+  diagrams: DiagramResponse[];
+  teams: TeamResponse[];
+  tasks: TaskResponse[];
 }
 
-interface ProjectMetadata {
-  version: string;
-  author?: string;
-  tags: string[];
-  lastOpenedDiagrams: string[];
-  workspaceLayout: WorkspaceLayout;
+interface DiagramResponse {
+  id: number;
+  title: string;
+  mermaid_code: string;
+  type: DiagramType; // 'Flowchart' | 'Sequence' | 'Gantt'
 }
-```
 
-### 2. Diagram Data Model
-```javascript
-interface Diagram {
-  id: string;
+// API Request Models
+interface ProjectCreate {
   name: string;
-  content: string;
+  description?: string;
+}
+
+interface DiagramCreate {
+  title: string;
+  mermaid_code: string;
   type: DiagramType;
-  filePath?: string;
-  createdAt: Date;
-  lastModified: Date;
-  isModified: boolean;
-  metadata: DiagramMetadata;
 }
 
-interface DiagramMetadata {
-  contentHash: string;
-  size: number;
-  lineCount: number;
-  lastCursorPosition?: CursorPosition;
-  lastScrollPosition?: ScrollPosition;
-}
-
-type DiagramType = 'flowchart' | 'sequence' | 'class' | 'state' | 'er' | 'gantt' | 'pie' | 'journey';
+type DiagramType = 'Flowchart' | 'Sequence' | 'Gantt';
 ```
 
-### 3. Workspace State Model
-```javascript
+### 2. Frontend State Models
+```typescript
+// Frontend workspace state (not persisted to backend)
 interface WorkspaceState {
-  // Project state
-  currentProject: Project | null;
-  projectList: Project[];
-  recentProjects: ProjectReference[];
+  // Current project state
+  currentProject: ProjectOutlineResponse | null;
+  projectList: ProjectResponse[];
   
-  // UI state
+  // UI state (local only)
   navigationPane: NavigationPaneState;
   editorPane: EditorPaneState;
   
-  // Application state
+  // Application state (local only)
   theme: string;
   settings: ApplicationSettings;
   notifications: Notification[];
@@ -342,28 +395,27 @@ interface WorkspaceState {
 interface NavigationPaneState {
   isCollapsed: boolean;
   width: number;
-  selectedDiagramId: string | null;
+  selectedDiagramId: number | null;
   searchQuery: string;
-  sortBy: 'name' | 'modified' | 'created';
+  sortBy: 'title' | 'updated' | 'created';
 }
 
 interface EditorPaneState {
   openTabs: EditorTab[];
   activeTabId: string | null;
   tabOrder: string[];
-  splitView: boolean;
 }
 ```
 
-### 4. Tab Management Model
-```javascript
+### 3. Tab Management Model
+```typescript
 interface EditorTab {
-  id: string;
-  diagramId: string;
+  id: string; // local tab ID
+  diagramId: number; // backend diagram ID
   title: string;
   isModified: boolean;
   isActive: boolean;
-  isPinned: boolean;
+  isUntitled: boolean; // for new diagrams not yet saved
   editorState: EditorState;
   lastAccessed: Date;
 }
@@ -377,163 +429,188 @@ interface EditorState {
 }
 ```
 
-### 5. File System Integration Model
-```javascript
-interface ProjectFileSystem {
-  projectPath: string;
-  diagramFiles: Map<string, DiagramFile>;
-  projectFile: ProjectConfigFile;
-  backupFiles: BackupFile[];
+### 4. Diagram Creation Workflow Model
+```typescript
+interface DiagramCreationWorkflow {
+  // Step 1: Create diagram immediately in backend
+  createDiagram(projectId: number): Promise<DiagramResponse>;
+  
+  // Step 2: Open in editor with temporary title
+  openInEditor(diagram: DiagramResponse): EditorTab;
+  
+  // Step 3: Prompt for name on first save
+  promptForName(): Promise<string>;
+  
+  // Step 4: Update diagram title in backend
+  updateDiagramTitle(diagramId: number, title: string): Promise<DiagramResponse>;
 }
 
-interface DiagramFile {
-  id: string;
-  fileName: string;
-  filePath: string;
-  fileHandle?: FileSystemFileHandle;
-  lastSynced: Date;
-  syncStatus: 'synced' | 'modified' | 'conflict' | 'error';
+interface UntitledDiagram extends DiagramResponse {
+  isUntitled: true;
+  temporaryTitle: string; // e.g., "Untitled Diagram 1"
+}
+```
+
+### 5. Error Handling Models
+```typescript
+interface ApiError {
+  status: number;
+  message: string;
+  details?: any;
+}
+
+interface WorkspaceError {
+  type: 'api' | 'validation' | 'network' | 'unknown';
+  message: string;
+  action?: 'retry' | 'reload' | 'ignore';
+  context?: {
+    operation: string;
+    projectId?: number;
+    diagramId?: number;
+  };
 }
 ```
 
 ## Error Handling
 
-### 1. Project Management Errors
-- **Issue**: Project creation/loading failures
-- **Solution**: Comprehensive validation and error recovery
-- **Implementation**: Backup project states and rollback mechanisms
-- **User Experience**: Clear error messages with recovery options
+### 1. Backend API Integration Errors
+- **Issue**: Network failures, API timeouts, or server errors
+- **Solution**: Retry mechanisms with exponential backoff and user feedback
+- **Implementation**: Axios interceptors for error handling and retry logic
+- **User Experience**: Loading states, error messages, and retry buttons
 
-### 2. Tab Management Errors
+### 2. Project Management Errors
+- **Issue**: Project creation/loading failures from backend
+- **Solution**: Comprehensive validation and graceful error handling
+- **Implementation**: API response validation and fallback states
+- **User Experience**: Clear error messages with actionable recovery options
+
+### 3. Diagram Operations Errors
+- **Issue**: Diagram save/load failures or backend validation errors
+- **Solution**: Local state preservation with sync retry mechanisms
+- **Implementation**: Optimistic updates with rollback on failure
+- **Recovery**: Auto-save draft state and manual retry options
+
+### 4. Tab Management Errors
 - **Issue**: Tab state corruption or memory leaks from multiple editors
 - **Solution**: Proper cleanup of editor instances and state isolation
 - **Implementation**: Tab lifecycle management with resource cleanup
-- **Recovery**: Automatic tab recovery from saved state
+- **Recovery**: Automatic tab recovery from local state
 
-### 3. File System Integration Errors
-- **Issue**: File access permissions, disk space, or file corruption
-- **Solution**: Graceful degradation to localStorage with user notification
-- **Implementation**: Multi-tier storage strategy (File System API → localStorage → memory)
-- **Recovery**: Automatic backup and restore mechanisms
+### 5. Navigation Pane State Errors
+- **Issue**: Diagram list loading failures or UI state corruption
+- **Solution**: State validation with fallback to empty state
+- **Implementation**: Local UI state management with backend sync
+- **Recovery**: Refresh diagram list with loading indicators
 
-### 4. Navigation Pane State Errors
-- **Issue**: Collapsed state persistence or diagram list corruption
-- **Solution**: State validation and default fallbacks
-- **Implementation**: Robust state serialization with version compatibility
-- **Recovery**: Reset to default layout with user confirmation
-
-### 5. Multi-Tab Editor Synchronization Errors
-- **Issue**: Concurrent editing conflicts or state desynchronization
-- **Solution**: Event-driven state management with conflict resolution
-- **Implementation**: Centralized state store with action dispatching
-- **Recovery**: Last-write-wins with user notification of conflicts
-
-### 6. Project Import/Export Errors
-- **Issue**: Malformed project files or version incompatibility
-- **Solution**: Schema validation and migration utilities
-- **Implementation**: Versioned project format with backward compatibility
-- **Recovery**: Partial import with error reporting for failed items
+### 6. Modular Component Errors
+- **Issue**: Editor component initialization or communication failures
+- **Solution**: Component error boundaries and graceful degradation
+- **Implementation**: Error boundaries around editor components
+- **Recovery**: Component re-initialization with preserved state
 
 ## Testing Strategy
 
 ### 1. Unit Tests
-- **Project Management**: Test project CRUD operations, validation, and state management
+- **Backend API Service**: Test ProjectApiService methods with mock API responses
+- **Project Management**: Test project CRUD operations and state management
 - **Tab Manager**: Test tab creation, switching, closing, and state persistence
 - **Navigation Pane**: Test collapse/expand, diagram list management, and toolbar actions
-- **File System Integration**: Test project import/export, diagram file operations
+- **Modular Editor Component**: Test MermaidEditorComponent integration and functionality
 - **State Management**: Test workspace state transitions and action dispatching
 
 ### 2. Integration Tests
+- **Backend Integration Flow**: Test complete API integration from project creation to diagram editing
 - **Project Workspace Flow**: Test complete project creation → diagram addition → editing workflow
 - **Multi-Tab Editing**: Test simultaneous editing of multiple diagrams with state isolation
 - **Navigation Integration**: Test diagram selection from navigation pane opening correct tabs
-- **File Operations**: Test add existing diagram and create new diagram workflows
+- **Diagram Creation Workflow**: Test immediate creation with naming on first save
 - **Theme and Settings**: Test theme changes affecting all open editors consistently
 
 ### 3. User Experience Tests
 - **Workflow Efficiency**: Test common user workflows (create project, add diagrams, edit, save)
 - **Tab Management UX**: Test tab switching, closing, and recovery scenarios
 - **Navigation UX**: Test collapsible pane behavior and diagram list interactions
-- **Error Recovery**: Test user experience during error scenarios with clear messaging
+- **Error Recovery**: Test user experience during API error scenarios with clear messaging
 - **Responsive Design**: Test workspace behavior on different screen sizes and orientations
 
 ### 4. Performance Tests
+- **API Response Performance**: Test loading time for projects and diagrams from backend
 - **Memory Management**: Test memory usage with multiple open tabs and large projects
 - **Tab Switching Performance**: Test responsiveness when switching between many tabs
-- **Project Loading Performance**: Test loading time for projects with many diagrams
 - **Editor Instance Management**: Test proper cleanup and resource management
-- **State Persistence Performance**: Test save/restore performance for complex workspace states
+- **Component Rendering Performance**: Test modular component rendering and re-rendering
 
-### 5. Browser Compatibility Tests
-- **CSS Grid Layout**: Test project workspace layout across browsers
-- **File System API**: Test project import/export with fallback behaviors
-- **localStorage Limits**: Test project data storage with quota management
-- **Multi-Tab Memory**: Test browser memory handling with multiple editor instances
+### 5. Backend Integration Tests
+- **API Error Handling**: Test various API error scenarios and recovery mechanisms
+- **Network Failure Recovery**: Test offline behavior and reconnection handling
+- **Data Synchronization**: Test data consistency between frontend and backend
+- **Concurrent Operations**: Test handling of simultaneous API operations
 
 ## Implementation Approach
 
-### Phase 1: Project Management Foundation
-1. Create Project and Diagram data models with TypeScript interfaces
-2. Implement ProjectManager class with CRUD operations
-3. Design project storage schema (localStorage + File System API)
-4. Create project validation and migration utilities
-5. Test project creation, loading, and persistence
+### Phase 1: Backend API Integration Foundation
+1. Create ProjectApiService class with Solution Outline Assistant API integration
+2. Implement API data models matching backend schema (ProjectCreate, DiagramCreate, etc.)
+3. Set up error handling and retry mechanisms for API calls
+4. Create API response validation and type safety
+5. Test all API endpoints with mock data
 
-### Phase 2: Workspace Layout Transformation
-1. Replace single MermaidRenderer with ProjectWorkspace component
-2. Implement CSS Grid layout for dual-pane interface
+### Phase 2: Modular Editor Component Extraction
+1. Extract MermaidEditorComponent from existing MermaidRenderer
+2. Create clean component interface with props and events
+3. Implement editor height optimization within the component
+4. Test component isolation and reusability
+5. Integrate component back into MermaidRenderer
+
+### Phase 3: Centralized CSS Management
+1. Identify common CSS patterns across existing components
+2. Move shared styles to main.css with utility classes
+3. Remove duplicated CSS from individual components
+4. Implement CSS custom properties for theming
+5. Test visual consistency across all components
+
+### Phase 4: Project Workspace Layout
+1. Create ProjectWorkspace component with dual-pane layout
+2. Implement CSS Grid layout for responsive design
 3. Create collapsible NavigationPane component
-4. Implement responsive design for mobile/tablet support
-5. Test layout behavior and pane resizing
+4. Implement pane resizing and state persistence
+5. Test layout behavior across different screen sizes
 
-### Phase 3: Navigation Pane Implementation
-1. Create ProjectToolbar component with project name and action buttons
-2. Implement DiagramList component with search and sorting
-3. Add diagram management actions (rename, delete, duplicate)
-4. Implement collapse/expand functionality with state persistence
-5. Test navigation interactions and state management
+### Phase 5: Navigation Pane Implementation
+1. Create ProjectToolbar with backend-integrated project operations
+2. Implement DiagramList component with backend data loading
+3. Add diagram management actions using API calls
+4. Implement collapse/expand functionality with local state
+5. Test navigation interactions and API integration
 
-### Phase 4: Tabbed Editor System
+### Phase 6: Tabbed Editor System
 1. Create TabManager class for tab lifecycle management
-2. Implement EditorTab component with close buttons
-3. Create tab switching logic with state preservation
-4. Implement tab persistence and recovery
+2. Implement EditorTab component with close buttons and modification indicators
+3. Create tab switching logic with editor state preservation
+4. Implement tab persistence using local storage for UI state only
 5. Test multi-tab editing and memory management
 
-### Phase 5: File Operations Integration
-1. Implement "Add Diagram" functionality for existing files
-2. Create "Create Diagram" workflow with filename prompts
-3. Integrate File System API for project import/export
-4. Add drag-and-drop support for adding diagrams
-5. Test file operations and error handling
+### Phase 7: Streamlined Diagram Creation Workflow
+1. Implement immediate diagram creation via backend API
+2. Create temporary naming system for new diagrams
+3. Implement name-on-first-save workflow with dialog
+4. Add diagram title update functionality via API
+5. Test complete creation workflow from click to save
 
-### Phase 6: State Management and Persistence
+### Phase 8: State Management and Backend Sync
 1. Implement centralized WorkspaceState management
 2. Create action dispatchers for all user interactions
-3. Add auto-save functionality for projects and diagrams
-4. Implement workspace state persistence and restoration
-5. Test state synchronization and conflict resolution
+3. Add optimistic updates with backend synchronization
+4. Implement error handling and rollback mechanisms
+5. Test state consistency and conflict resolution
 
-### Phase 7: Enhanced Editor Features
-1. Maintain existing Mermaid syntax highlighting and themes
-2. Integrate editor toolbar within each tab
-3. Preserve existing height calculation and responsive behavior
-4. Add project-scoped editor settings
-5. Test editor functionality within tabbed interface
-
-### Phase 8: Integration and Polish
+### Phase 9: Integration and Polish
 1. Integrate all components into cohesive workspace
 2. Implement comprehensive error handling and user feedback
-3. Add loading states and progress indicators
-4. Optimize performance for multiple editors
+3. Add loading states and progress indicators for API calls
+4. Optimize performance for multiple editors and API calls
 5. Comprehensive testing across all requirements
-
-### Phase 9: Migration and Backward Compatibility
-1. Create migration utility for existing single-diagram data
-2. Implement backward compatibility for existing localStorage data
-3. Add import functionality for legacy diagram files
-4. Test migration scenarios and data preservation
-5. Document migration process for users
 
 ## Performance Considerations
 

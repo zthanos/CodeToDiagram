@@ -2,6 +2,7 @@
 
 import axios from 'axios';
 import { Project, Diagram, Requirement, Task, Team } from '../types';
+import { Diagram } from 'mermaid/dist/Diagram';
 
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
@@ -16,19 +17,47 @@ export class ProjectApiService {
     return response.data;
   }
 
-  public static async getProjectOutline(projectId: number): Promise<Project> {
+  public static async getProjectOutline(projectId: string): Promise<Project> {
     const response = await axios.get<Project>(`${API_BASE_URL}/projects/${projectId}/outline`);
     return response.data;
   }
 
-  public static async addDiagram(projectId: number, title: string, mermaid_code: string, type: string): Promise<Diagram> {
+  public static async addDiagram(projectId: string, title: string, mermaid_code: string, type: string): Promise<Diagram> {
     const response = await axios.post<Diagram>(`${API_BASE_URL}/projects/${projectId}/diagrams/add`, {
       title,
       mermaid_code,
       type,
     });
-    return response.data;
+    return this.mapToDiagram(response.data, projectId);
   }
+  public static async updateDiagram(projectId: string, diagramId: Number, title: string, mermaid_code: string, type: string): Promise<Diagram> {
+    const response = await axios.put<Diagram>(`${API_BASE_URL}/projects/${projectId}/diagrams/update/${diagramId}`, {
+      title,
+      mermaid_code,
+      type,
+    });
+    return this.mapToDiagram(response.data, projectId);
+  }
+
+  
+  public static async getDiagram(projectId: string, diagramId: number): Promise<Diagram> {
+    const response = await axios.get<Diagram[]>(`${API_BASE_URL}/projects/${projectId}/diagrams/${diagramId}`);
+    
+    return this.mapToDiagram(response.data, projectId);
+  }
+
+  public static mapToDiagram(data: any, projectId: string): Diagram {
+    const diagram: Diagram = {
+      id: data.id,
+      projectId: projectId,
+      title: data.title,
+      content: data.mermaid_code,
+      type: data.type
+    }
+    return diagram;
+  }
+  
+
 
   public static async listDiagrams(projectId: number): Promise<Diagram[]> {
     const response = await axios.get<Diagram[]>(`${API_BASE_URL}/projects/${projectId}/diagrams/list`);
