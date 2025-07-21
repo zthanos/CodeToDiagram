@@ -12,15 +12,25 @@
     <main class="app-main">
       <ProjectWorkspace :theme="theme" @update:theme="theme = $event" />
     </main>
+    
+    <!-- Toast notifications -->
+    <ToastNotification />
+    
+    <!-- Global loading overlay -->
+    <GlobalLoadingOverlay />
   </div>
 </template>
 
 <script>
 import ProjectWorkspace from './components/ProjectWorkspace.vue'
+import ToastNotification from './components/ToastNotification.vue'
+import GlobalLoadingOverlay from './components/GlobalLoadingOverlay.vue'
 
 export default {
   components: {
-    ProjectWorkspace
+    ProjectWorkspace,
+    ToastNotification,
+    GlobalLoadingOverlay
   },
   data() {
     return {

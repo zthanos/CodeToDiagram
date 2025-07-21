@@ -49,6 +49,7 @@ import { ref, watch, nextTick, onMounted } from 'vue';
 import mermaid from 'mermaid';
 import CodeEditor from './CodeEditor.vue'; // import your CodeEditor component
 import { ProjectManager } from '@/services/ProjectManager';
+import NotificationService from '../services/NotificationService';
 
 
 
@@ -122,8 +123,7 @@ function emitNotification(msg, msgType, icon) {
   };
 }
 
-function onSave(newCode: string) {
-  console.log('Save triggered', code.value);
+function onSave() {
   emit('request-save', code.value);
 }
 
@@ -180,8 +180,8 @@ function hideNotification() {
 async function handleDiagramSaved(savedDiagram: any) {
   emitNotification('Diagram created successfully', 'success', '✅')
   showCreateDialog.value = false
-  // Optionally, emit to parent to update tab state:
-  emit('content-changed', savedDiagram.mermaid_code)
+  // No need to emit content-changed after save - the content hasn't changed, it was just saved
+  // The parent component will handle updating the tab state through the saved event
 }
 
 </script>

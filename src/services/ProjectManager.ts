@@ -12,7 +12,7 @@ import {
   EditorSettings,
   WorkspaceLayout,
   ProjectReference,
-} from '../types';
+} from '../types/project';
 import { ProjectApiService } from './ProjectApiService';
 
 
@@ -135,20 +135,32 @@ export class ProjectManager {
       }
 
       // Convert date strings to Date objects
-      project.createdAt = new Date(project.created_at);
-      project.updatedAt = new Date(project.updated_at);
+      if (project.created_at) {
+        project.createdAt = new Date(project.created_at);
+      }
+      if (project.updated_at) {
+        project.lastModified = new Date(project.updated_at);
+      }
 
       if (project.requirements) {
         project.requirements.forEach(r => {
-          r.createdAt = new Date(r.created_at);
-          r.updatedAt = new Date(r.updated_at);
+          if (r.created_at) {
+            r.createdAt = new Date(r.created_at);
+          }
+          if (r.updated_at) {
+            r.updatedAt = new Date(r.updated_at);
+          }
         });
       }
 
       if (project.diagrams) {
         project.diagrams.forEach(d => {
-          d.createdAt = new Date(d.created_at);
-          d.updatedAt = new Date(d.updated_at);
+          if (d.created_at) {
+            d.createdAt = new Date(d.created_at);
+          }
+          if (d.updated_at) {
+            d.lastModified = new Date(d.updated_at);
+          }
         });
       }
 
@@ -188,18 +200,38 @@ export class ProjectManager {
     }
   }
 
-  public async saveDiagram(projectId: string, diagramId: Number | null, title: string, content: string): Promise<Diagram> {
+  public async saveDiagram(projectId: string, diagramId: number | null, title: string, content: string, type: string = "flowchart"): Promise<Diagram> {
     try {
+      let savedDiagram: Diagram;
+      
       if (!diagramId) {
-        return await ProjectApiService.addDiagram(projectId, title, content, "sequence");
+        // Create new diagram
+        savedDiagram = await ProjectApiService.addDiagram(projectId, title, content, type);
+      } else {
+        // Update existing diagram
+        savedDiagram = await ProjectApiService.updateDiagram(projectId, diagramId, title, content, type);
       }
-      else {
-        return await ProjectApiService.updateDiagram(projectId, diagramId, title, content, "sequence");
+
+      // Update local project state if this is the current project
+      if (this.currentProject && this.currentProject.id === projectId) {
+        const existingDiagramIndex = this.currentProject.diagrams.findIndex(d => d.id === savedDiagram.id);
+        
+        if (existingDiagramIndex >= 0) {
+          // Update existing diagram in local state
+          this.currentProject.diagrams[existingDiagramIndex] = savedDiagram;
+        } else {
+          // Add new diagram to local state
+          this.currentProject.diagrams.push(savedDiagram);
+        }
+        
+        // Update project's last modified timestamp
+        this.currentProject.lastModified = new Date();
       }
+
+      return savedDiagram;
     } catch (error) {
       throw new Error(`Failed to save diagram: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
   }
 
   /**
@@ -297,7 +329,27 @@ export class ProjectManager {
   }
 
   /**
-   * Add diagram to current project
+   * Create a new diagram and immediately sync with backend
+   */
+  public async createDiagram(projectId: string, title: string, content: string = '', type: string = 'flowchart'): Promise<Diagram> {
+    try {
+      // Create diagram via backend API
+      const newDiagram = await ProjectApiService.addDiagram(projectId, title, content, type);
+
+      // Update local project state if this is the current project
+      if (this.currentProject && this.currentProject.id === projectId) {
+        this.currentProject.diagrams.push(newDiagram);
+        this.currentProject.lastModified = new Date();
+      }
+
+      return newDiagram;
+    } catch (error) {
+      throw new Error(`Failed to create diagram: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Add diagram to current project (legacy method for compatibility)
    */
   public async addDiagramToProject(diagram: Diagram, projectId?: string): Promise<void> {
     const targetProject = projectId ?
@@ -308,9 +360,15 @@ export class ProjectManager {
       throw new Error('No target project found');
     }
 
-    // Check for duplicate diagram names
-    if (targetProject.diagrams.some(d => d.name === diagram.name)) {
-      throw new Error(`Diagram with name "${diagram.name}" already exists in project`);
+    // Check for duplicate diagram titles
+    if (targetProject.diagrams.some(d => d.title === diagram.title)) {
+      throw new Error(`Diagram with title "${diagram.title}" already exists in project`);
+    }
+
+    // If diagram doesn't have an ID, create it via backend
+    if (!diagram.id) {
+      const createdDiagram = await this.createDiagram(targetProject.id, diagram.title, diagram.content, diagram.type);
+      return;
     }
 
     targetProject.diagrams.push(diagram);
@@ -318,9 +376,27 @@ export class ProjectManager {
   }
 
   /**
-   * Remove diagram from project
+   * Delete a diagram and immediately sync with backend
    */
-  public async removeDiagramFromProject(diagramId: string, projectId?: string): Promise<void> {
+  public async deleteDiagram(projectId: string, diagramId: number): Promise<void> {
+    try {
+      // Delete diagram via backend API
+      await ProjectApiService.deleteDiagram(projectId, diagramId);
+
+      // Update local project state if this is the current project
+      if (this.currentProject && this.currentProject.id === projectId) {
+        this.currentProject.diagrams = this.currentProject.diagrams.filter(d => d.id !== diagramId);
+        this.currentProject.lastModified = new Date();
+      }
+    } catch (error) {
+      throw new Error(`Failed to delete diagram: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Remove diagram from project (legacy method for compatibility)
+   */
+  public async removeDiagramFromProject(diagramId: number, projectId?: string): Promise<void> {
     const targetProject = projectId ?
       this.projectList.find(p => p.id === projectId) :
       this.currentProject;
@@ -329,8 +405,8 @@ export class ProjectManager {
       throw new Error('No target project found');
     }
 
-    targetProject.diagrams = targetProject.diagrams.filter(d => d.id !== diagramId);
-    await this.saveProject(targetProject);
+    // Use the new delete method that syncs with backend
+    await this.deleteDiagram(targetProject.id, diagramId);
   }
 
   /**
@@ -403,7 +479,6 @@ export class ProjectManager {
       console.error('Failed to load projects:', error);
       this.projectList = [];
     }
-    return this.projectList;
   }
 
 

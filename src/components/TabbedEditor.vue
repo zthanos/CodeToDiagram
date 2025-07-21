@@ -1,23 +1,12 @@
 <template>
   <div class="tabbed-editor" :class="{ 'dark-theme': isDarkTheme }">
     <!-- Tab Bar -->
-    <TabBar
-      :tabs="displayTabs"
-      :active-tab-id="activeTabId"
-      :theme="theme"
-      :show-close-on-pinned="showCloseOnPinned"
-      :max-visible-tabs="maxVisibleTabs"
-      @tab-click="handleTabClick"
-      @tab-close="handleTabClose"
-      @tab-close-others="handleTabCloseOthers"
-      @tab-close-all="handleTabCloseAll"
-      @tab-toggle-pin="handleTabTogglePin"
-      @tab-duplicate="handleTabDuplicate"
-      @tab-reorder="handleTabReorder"
-      @new-tab="handleNewTab"
-      @close-unmodified-tabs="handleCloseUnmodifiedTabs"
-    />
-    
+    <TabBar :tabs="displayTabs" :active-tab-id="activeTabId" :theme="theme" :show-close-on-pinned="showCloseOnPinned"
+      :max-visible-tabs="maxVisibleTabs" @tab-click="handleTabClick" @tab-close="handleTabClose"
+      @tab-close-others="handleTabCloseOthers" @tab-close-all="handleTabCloseAll" @tab-toggle-pin="handleTabTogglePin"
+      @tab-duplicate="handleTabDuplicate" @tab-reorder="handleTabReorder" @new-tab="handleNewTab"
+      @close-unmodified-tabs="handleCloseUnmodifiedTabs" />
+
     <!-- Tab Content Area -->
     <div class="tab-content-area">
       <!-- Empty State -->
@@ -28,32 +17,21 @@
           <p>Open a diagram to start editing</p>
         </div>
       </div>
-      
+
       <!-- Editor Instances -->
       <div v-else class="editor-instances">
-        <div
-          v-for="tab in openTabs"
-          :key="tab.id"
-          class="editor-instance"
-          :class="{ 'active': tab.id === activeTabId }"
-          v-show="tab.id === activeTabId"
-        >
-          <MermaidRenderer
-            :ref="el => setEditorRef(tab.id, el)"
-            :theme="theme"
-            :initial-content="tab.editorState.content"
-            :initial-cursor-position="tab.editorState.cursorPosition"
-            :initial-scroll-position="tab.editorState.scrollPosition"
-            @update:theme="$emit('update:theme', $event)"
+        <div v-for="tab in openTabs" :key="tab.id" class="editor-instance" :class="{ 'active': tab.id === activeTabId }"
+          v-show="tab.id === activeTabId">
+          <MermaidRenderer :ref="el => setEditorRef(tab.id, el)" :theme="theme"
+            :initial-content="tab.editorState.content" :initial-cursor-position="tab.editorState.cursorPosition"
+            :initial-scroll-position="tab.editorState.scrollPosition" @update:theme="$emit('update:theme', $event)"
             @content-changed="handleContentChanged(tab.id, $event)"
-            @cursor-changed="handleCursorChanged(tab.id, $event)"
-            @scroll-changed="handleScrollChanged(tab.id, $event)"
-            @editor-ready="handleEditorReady(tab.id, $event)"
-          />
+            @cursor-changed="handleCursorChanged(tab.id, $event)" @scroll-changed="handleScrollChanged(tab.id, $event)"
+            @editor-ready="handleEditorReady(tab.id, $event)" />
         </div>
       </div>
     </div>
-    
+
     <!-- Loading Overlay -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-spinner"></div>
@@ -128,7 +106,7 @@ export default defineComponent({
     isDarkTheme() {
       return this.theme === 'dark';
     },
-    
+
     displayTabs() {
       return this.openTabs.map(tab => ({
         id: tab.id,
@@ -148,13 +126,13 @@ export default defineComponent({
       },
       deep: true
     },
-    
+
     activeDiagramId(newId, oldId) {
       if (newId && newId !== oldId) {
         this.openDiagramTab(newId);
       }
     },
-    
+
     theme() {
       // Theme changes are handled by individual MermaidRenderer instances
       this.$nextTick(() => {
@@ -180,7 +158,7 @@ export default defineComponent({
           autoSaveInterval: this.autoSaveInterval,
           persistState: true
         };
-        
+
         const tabManagerEvents = {
           onTabCreated: this.handleTabManagerTabCreated,
           onTabClosed: this.handleTabManagerTabClosed,
@@ -188,18 +166,18 @@ export default defineComponent({
           onTabModified: this.handleTabManagerTabModified,
           onTabOrderChanged: this.handleTabManagerTabOrderChanged
         };
-        
+
         this.tabManager = TabManager.getInstance(tabManagerOptions, tabManagerEvents);
-        
+
         // Sync initial state
         this.syncTabManagerState();
-        
+
         console.log('TabManager initialized successfully');
       } catch (error) {
         console.error('Failed to initialize TabManager:', error);
       }
     },
-    
+
     async initializeFromProps() {
       // Open tabs for existing diagrams if any
       if (this.diagrams.length > 0) {
@@ -210,14 +188,14 @@ export default defineComponent({
         }
       }
     },
-    
+
     syncTabManagerState() {
       if (!this.tabManager) return;
-      
+
       this.openTabs = this.tabManager.getOpenTabs();
       this.activeTabId = this.tabManager.getActiveTabId();
     },
-    
+
     // Diagram Management
     async openDiagramTab(diagramId) {
       const diagram = this.diagrams.find(d => d.id === diagramId);
@@ -225,35 +203,35 @@ export default defineComponent({
         console.warn(`Diagram with ID ${diagramId} not found`);
         return;
       }
-      
+
       try {
         this.isLoading = true;
-        
+
         // Open tab using TabManager
         const tab = this.tabManager.openTab(diagram);
-        
+
         // Sync state
         this.syncTabManagerState();
-        
+
         // Emit event
         this.$emit('tab-opened', {
           tabId: tab.id,
           diagramId: diagram.id
         });
-        
+
         // Wait for next tick to ensure DOM is updated
         await this.$nextTick();
-        
+
         // Initialize editor if needed
         await this.ensureEditorInitialized(tab.id);
-        
+
       } catch (error) {
         console.error('Failed to open diagram tab:', error);
       } finally {
         this.isLoading = false;
       }
     },
-    
+
     async ensureEditorInitialized(tabId) {
       const editorRef = this.editorRefs.get(tabId);
       if (editorRef && editorRef.initCodeMirror) {
@@ -264,38 +242,38 @@ export default defineComponent({
         }
       }
     },
-    
+
     // Tab Event Handlers
     handleTabClick(event) {
       const { tabId } = event;
       this.switchToTab(tabId);
     },
-    
+
     handleTabClose(tabId) {
       this.closeTab(tabId);
     },
-    
+
     handleTabCloseOthers(tabId) {
       if (this.tabManager) {
         this.tabManager.closeOtherTabs(tabId);
         this.syncTabManagerState();
       }
     },
-    
+
     handleTabCloseAll() {
       if (this.tabManager) {
         this.tabManager.closeAllTabs();
         this.syncTabManagerState();
       }
     },
-    
+
     handleTabTogglePin(tabId) {
       if (this.tabManager) {
         this.tabManager.toggleTabPin(tabId);
         this.syncTabManagerState();
       }
     },
-    
+
     handleTabDuplicate(tabId) {
       const tab = this.tabManager?.getTab(tabId);
       if (tab) {
@@ -310,7 +288,7 @@ export default defineComponent({
         }
       }
     },
-    
+
     handleTabReorder(event) {
       const { tabId, fromIndex, toIndex } = event;
       if (this.tabManager) {
@@ -318,53 +296,53 @@ export default defineComponent({
         this.syncTabManagerState();
       }
     },
-    
+
     handleNewTab() {
       this.$emit('new-diagram-requested', {
         name: 'New Diagram'
       });
     },
-    
+
     handleCloseUnmodifiedTabs() {
       if (!this.tabManager) return;
-      
+
       const tabsToClose = this.openTabs.filter(tab => !tab.isModified && !tab.isPinned);
       for (const tab of tabsToClose) {
         this.tabManager.closeTab(tab.id);
       }
       this.syncTabManagerState();
     },
-    
+
     // Tab Management
     switchToTab(tabId) {
       if (this.tabManager) {
         this.tabManager.switchToTab(tabId);
         this.syncTabManagerState();
-        
+
         this.$emit('tab-switched', {
           tabId,
           diagramId: this.getTabDiagramId(tabId)
         });
-        
+
         // Refresh editor after switching
         this.$nextTick(() => {
           this.refreshActiveEditor();
         });
       }
     },
-    
+
     closeTab(tabId) {
       if (this.tabManager) {
         const tab = this.tabManager.getTab(tabId);
         const diagramId = tab?.diagramId;
-        
+
         if (this.tabManager.closeTab(tabId)) {
           // Clean up editor ref
           this.editorRefs.delete(tabId);
-          
+
           // Sync state
           this.syncTabManagerState();
-          
+
           // Emit event
           this.$emit('tab-closed', {
             tabId,
@@ -373,19 +351,19 @@ export default defineComponent({
         }
       }
     },
-    
+
     // Content Change Handlers
     handleContentChanged(tabId, content) {
       if (this.tabManager) {
         // Update tab editor state
         this.tabManager.updateTabEditorState(tabId, { content });
-        
+
         // Mark tab as modified
         this.tabManager.setTabModified(tabId, true);
-        
+
         // Sync state
         this.syncTabManagerState();
-        
+
         // Emit diagram content change
         const diagramId = this.getTabDiagramId(tabId);
         if (diagramId) {
@@ -397,11 +375,11 @@ export default defineComponent({
         }
       }
     },
-    
+
     handleCursorChanged(tabId, cursorPosition) {
       if (this.tabManager) {
         this.tabManager.updateTabEditorState(tabId, { cursorPosition });
-        
+
         const diagramId = this.getTabDiagramId(tabId);
         if (diagramId) {
           this.$emit('diagram-cursor-changed', {
@@ -412,11 +390,11 @@ export default defineComponent({
         }
       }
     },
-    
+
     handleScrollChanged(tabId, scrollPosition) {
       if (this.tabManager) {
         this.tabManager.updateTabEditorState(tabId, { scrollPosition });
-        
+
         const diagramId = this.getTabDiagramId(tabId);
         if (diagramId) {
           this.$emit('diagram-scroll-changed', {
@@ -427,39 +405,39 @@ export default defineComponent({
         }
       }
     },
-    
+
     handleEditorReady(tabId, editorInstance) {
       console.log(`Editor ready for tab ${tabId}`);
       // Editor is ready, can perform additional setup if needed
     },
-    
+
     // TabManager Event Handlers
     handleTabManagerTabCreated(tab) {
       console.log('Tab created:', tab.id);
     },
-    
+
     handleTabManagerTabClosed(tabId) {
       console.log('Tab closed:', tabId);
     },
-    
+
     handleTabManagerTabSwitched(tabId) {
       console.log('Tab switched:', tabId);
     },
-    
+
     handleTabManagerTabModified(tabId, isModified) {
       console.log(`Tab ${tabId} modified:`, isModified);
     },
-    
+
     handleTabManagerTabOrderChanged(tabOrder) {
       console.log('Tab order changed:', tabOrder);
     },
-    
+
     // Diagram Changes Handler
     handleDiagramsChanged(newDiagrams, oldDiagrams) {
       // Handle diagram updates, additions, and removals
       const newIds = new Set(newDiagrams.map(d => d.id));
       const oldIds = new Set((oldDiagrams || []).map(d => d.id));
-      
+
       // Close tabs for removed diagrams
       for (const oldId of oldIds) {
         if (!newIds.has(oldId)) {
@@ -469,7 +447,7 @@ export default defineComponent({
           }
         }
       }
-      
+
       // Update content for existing tabs
       for (const diagram of newDiagrams) {
         const tab = this.openTabs.find(t => t.diagramId === diagram.id);
@@ -478,7 +456,7 @@ export default defineComponent({
           this.tabManager?.updateTabEditorState(tab.id, {
             content: diagram.content
           });
-          
+
           // Update editor content
           const editorRef = this.editorRefs.get(tab.id);
           if (editorRef && editorRef.setContent) {
@@ -486,16 +464,16 @@ export default defineComponent({
           }
         }
       }
-      
+
       this.syncTabManagerState();
     },
-    
+
     // Helper Methods
     getTabDiagramId(tabId) {
       const tab = this.openTabs.find(t => t.id === tabId);
       return tab?.diagramId || null;
     },
-    
+
     setEditorRef(tabId, el) {
       if (el) {
         this.editorRefs.set(tabId, el);
@@ -503,7 +481,7 @@ export default defineComponent({
         this.editorRefs.delete(tabId);
       }
     },
-    
+
     refreshActiveEditor() {
       if (this.activeTabId) {
         const editorRef = this.editorRefs.get(this.activeTabId);
@@ -512,19 +490,19 @@ export default defineComponent({
         }
       }
     },
-    
+
     // Public API Methods
     openDiagram(diagram) {
       return this.openDiagramTab(diagram.id);
     },
-    
+
     closeDiagram(diagramId) {
       const tab = this.openTabs.find(t => t.diagramId === diagramId);
       if (tab) {
         this.closeTab(tab.id);
       }
     },
-    
+
     switchToDiagram(diagramId) {
       const tab = this.openTabs.find(t => t.diagramId === diagramId);
       if (tab) {
@@ -534,28 +512,28 @@ export default defineComponent({
         this.openDiagramTab(diagramId);
       }
     },
-    
+
     getActiveEditor() {
       if (this.activeTabId) {
         return this.editorRefs.get(this.activeTabId);
       }
       return null;
     },
-    
+
     getAllEditors() {
       return Array.from(this.editorRefs.values());
     },
-    
+
     hasUnsavedChanges() {
       return this.tabManager?.hasUnsavedChanges() || false;
     },
-    
+
     // Cleanup
     cleanup() {
       if (this.tabManager) {
         this.tabManager.cleanup();
       }
-      
+
       this.editorRefs.clear();
     }
   }
@@ -661,8 +639,13 @@ export default defineComponent({
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Dark theme */
@@ -700,21 +683,21 @@ export default defineComponent({
   .empty-icon {
     font-size: 2.5rem;
   }
-  
+
   .empty-content h3 {
     font-size: 1.1rem;
   }
-  
+
   .empty-content p {
     font-size: 0.8rem;
   }
-  
+
   .loading-spinner {
     width: 28px;
     height: 28px;
     border-width: 2px;
   }
-  
+
   .loading-text {
     font-size: 0.8rem;
   }
@@ -725,7 +708,7 @@ export default defineComponent({
   .empty-state {
     border: 2px solid #000000;
   }
-  
+
   .loading-overlay {
     border: 2px solid #000000;
   }

@@ -19,7 +19,14 @@
 
       <div v-if="!currentProject" class="available-projects">
         <h4>Available Projects</h4>
-        <ul>
+        <div v-if="isLoadingProjects">
+          <SkeletonLoader type="list" :count="3" />
+        </div>
+        <div v-else-if="availableProjects.length === 0" class="empty-state">
+          <p>No projects available</p>
+          <p>Create a new project to get started</p>
+        </div>
+        <ul v-else>
           <li v-for="project in availableProjects" :key="project.id" @click="selectProject(project.id)">
             {{ project.name }} - {{ project.description }}
           </li>
@@ -29,12 +36,15 @@
         <div v-if="!currentProject" class="empty-state">
           <p>Create a project to get started</p>
         </div>
+        <div v-else-if="loading.isLoading && currentProject.diagrams.length === 0" class="loading-state">
+          <SkeletonLoader type="list" :count="2" />
+        </div>
         <div v-else-if="currentProject.diagrams.length === 0" class="empty-state">
           <p>No diagrams in this project</p>
           <p>Add or create diagrams to begin</p>
         </div>
         <div v-else>
-          <div v-for="diagram in currentProject.diagrams" :key="diagram.id" class="diagram-item"
+          <div v-for="diagram in currentProject.diagrams" :key="diagram.id || diagram.title" class="diagram-item"
             :class="{ active: selectedDiagramId === diagram.id }" @click="selectDiagram(diagram.id)">
             <span class="diagram-icon">📊</span>
             <span class="diagram-name">{{ diagram.title }}</span>
@@ -61,11 +71,17 @@
 
       <!-- Tab Bar -->
       <div class="tab-bar" v-if="openTabs.length > 0">
-        <div v-for="tab in openTabs" :key="tab.id" class="editor-tab" :class="{ active: activeTabId === tab.id }"
-          @click="switchToTab(tab.id)">
+        <div v-for="tab in openTabs" :key="tab.id" class="editor-tab" :class="{
+          active: activeTabId === tab.id,
+          'has-changes': tab.isModified
+        }" @click="switchToTab(tab.id)">
           <span class="tab-title">{{ tab.title }}</span>
-          <span v-if="tab.isModified" class="tab-modified">●</span>
-          <button class="tab-close" @click.stop="closeTab(tab.id)">×</button>
+          <span class="tab-status-indicator">
+            <span v-if="tab.isModified" class="status-modified" title="Unsaved changes">●</span>
+            <span v-else class="status-saved" title="Saved">✓</span>
+          </span>
+          <button class="tab-close" @click.stop="closeTab(tab.id)"
+            :title="tab.isModified ? 'Close (unsaved changes)' : 'Close'">×</button>
         </div>
       </div>
 
@@ -85,8 +101,8 @@
             @request-save="openSaveDialog" />
 
 
-          <SaveDiagramDialog ref="saveDialogRef" :projectId="currentProject?.id" :diagramId="selectedDiagramId"
-            :content="pendingSaveContent.value" @saved="handleDiagramSaved" @cancelled="showCreateDialog = false" />
+          <SaveDiagramDialog ref="saveDialogRef" :projectId="currentProject?.id || ''" :diagramId="selectedDiagramId"
+            :content="pendingSaveContent" @saved="handleDiagramSaved" @cancelled="showCreateDialog = false" />
         </div>
       </div>
     </div>
@@ -98,15 +114,23 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import MermaidRenderer from './MermaidRenderer.vue'
 import SaveDiagramDialog from './SaveDiagramDialog.vue'
-import { Project, Diagram } from '../types';
+import { Project, Diagram } from '../types'
+import NotificationService from '../services/NotificationService'
+import { useDialog } from '../composables/useDialog'
+import { useLoading } from '../composables/useLoading'
+import { useComponentErrorHandling } from '../composables/useErrorHandling'
+
+import SkeletonLoader from './SkeletonLoader.vue'
 
 
 interface Tab {
   id: string
-  diagramId: number
+  diagramId: number | null
   title: string
   isModified: boolean
   content: string
+  isUntitled?: boolean // for new diagrams not yet saved with proper names
+  isInitialLoad?: boolean // to prevent marking as modified during initial load
 }
 
 const props = defineProps<{ theme: string }>()
@@ -119,39 +143,70 @@ const selectedDiagramId = ref<number | null>(null)
 const openTabs = ref<Tab[]>([])
 const activeTabId = ref<string | null>(null)
 const availableProjects = ref<Project[]>([])
+const isLoadingProjects = ref(false)
 const pendingSaveContent = ref('')
 const showCreateDialog = ref(false)
 const tabCounter = ref(0)
 const nameInput = ref("")
 const saveDialogRef = ref(null)
+const dialog = useDialog()
+const loading = useLoading('workspace')
+const errorHandler = useComponentErrorHandling('ProjectWorkspace')
+
+
 
 onMounted(() => {
   initializeWorkspace()
   fetchAvailableProjects()
+  setupBeforeUnloadHandler()
 })
 
 onBeforeUnmount(() => {
   cleanupEventListeners()
+  removeBeforeUnloadHandler()
 })
 
 function initializeWorkspace() {
-  console.log('Initialize workspace')
+  NotificationService.info('Workspace', 'Initializing workspace...')
 }
 
 async function fetchAvailableProjects() {
-  console.log('Fetch projects')
   try {
+    console.log('Fetching available projects...')
+
+    // Set loading state for projects
+    isLoadingProjects.value = true
+
     const projectManager = await import('../services/ProjectManager')
     const manager = projectManager.ProjectManager.getInstance()
+
+    console.log('Loading project list from backend...')
     await manager.loadProjectList()
-    availableProjects.value = manager.getProjectList()
+
+    const projects = manager.getProjectList()
+    console.log('Projects loaded from manager:', projects)
+
+    availableProjects.value = projects
+    console.log('availableProjects.value updated:', availableProjects.value)
+
+    if (availableProjects.value.length > 0) {
+      NotificationService.success('Projects Loaded', `Found ${availableProjects.value.length} available projects`)
+    } else {
+      console.log('No projects found')
+      NotificationService.info('No Projects', 'No projects found. Create a new project to get started.')
+    }
   } catch (error) {
-    console.error('Failed to load available projects:', error)
+    console.error('Error fetching projects:', error)
+    NotificationService.error('Load Failed', 'Failed to load available projects')
+  } finally {
+    // Always clear loading state
+    isLoadingProjects.value = false
+    console.log('Loading state cleared, isLoadingProjects:', isLoadingProjects.value)
   }
 }
 
 function cleanupEventListeners() {
-  console.log('Cleanup listeners')
+  // Cleanup complete - no notification needed for internal operations
 }
 
 function updateCSSCustomProperty(property: string, value: string) {
@@ -161,10 +216,20 @@ function updateCSSCustomProperty(property: string, value: string) {
 }
 
 function handleContentChanged(tabId: string, newContent: string) {
+  console.log('handleContentChanged called for tab:', tabId, 'content length:', newContent.length)
   const tab = openTabs.value.find(t => t.id === tabId)
   if (tab) {
+    console.log('Tab found:', tab.title, 'diagramId:', tab.diagramId)
     tab.content = newContent
-    tab.isModified = true
+    
+    // Don't mark as modified if this is the initial load
+    if (tab.isInitialLoad) {
+      console.log('Initial load detected, not marking as modified')
+      tab.isInitialLoad = false // Clear the flag after first content change
+    } else {
+      tab.isModified = true
+    }
+    // No auto-save - only manual save when user explicitly saves
   }
 }
 
@@ -172,18 +237,37 @@ function toggleNavigation() {
   navigationCollapsed.value = !navigationCollapsed.value
   updateCSSCustomProperty('--nav-width', navigationCollapsed.value ? '0px' : `${navigationWidth.value}px`)
   nextTick(() => {
-    console.log('Editor resize (placeholder)')
+    // Editor resize handled automatically - no notification needed
   })
 }
 
 function switchToTab(tabId: string) {
   activeTabId.value = tabId
   nextTick(() => {
-    console.log('Editor resize (placeholder)')
+    // Editor resize handled automatically - no notification needed
   })
 }
 
-function closeTab(tabId: string) {
+async function closeTab(tabId: string) {
+  const tab = openTabs.value.find(t => t.id === tabId)
+  if (!tab) return
+
+  // Check for unsaved changes
+  if (tab.isModified) {
+    const shouldClose = await dialog.confirm(
+      'Unsaved Changes',
+      `"${tab.title}" has unsaved changes. Do you want to close it anyway?`,
+      'warning'
+    )
+
+    if (!shouldClose) {
+      return // User cancelled closing
+    }
+  }
+
+  // No auto-save cleanup needed since we removed auto-save
+
+  // Remove tab
   const index = openTabs.value.findIndex(t => t.id === tabId)
   if (index !== -1) {
     openTabs.value.splice(index, 1)
@@ -194,14 +278,15 @@ function closeTab(tabId: string) {
 }
 
 async function selectProject(projectId: string) {
-  try {
-    const projectManager = await import('../services/ProjectManager');
-    const manager = projectManager.ProjectManager.getInstance();
-    const project = await manager.loadProject(projectId);
-    await switchToProject(project);
-  } catch (error) {
-    console.error('Failed to load project:', error);
-  }
+  await errorHandler.withErrorHandling(async () => {
+    await loading.withLoading(async () => {
+      const projectManager = await import('../services/ProjectManager');
+      const manager = projectManager.ProjectManager.getInstance();
+      const project = await manager.loadProject(projectId);
+      await switchToProject(project);
+      NotificationService.success('Project Loaded', `Successfully loaded project "${project.name}"`)
+    }, 'Loading project...')
+  }, 'select_project')
 }
 
 async function switchToProject(project: any) {
@@ -244,7 +329,13 @@ async function switchToProject(project: any) {
     manager.setCurrentProject(fullProject);
 
   } catch (error) {
-    console.error('Error switching to project:', error);
+    NotificationService.error('Switch Failed', 'Failed to switch to project', {
+      actions: [{
+        label: 'Retry',
+        action: () => switchToProject(project),
+        style: 'primary'
+      }]
+    })
     throw error;
   }
 }
@@ -266,17 +357,16 @@ async function restoreProjectTabs(tabDiagramIds: any, activeTabId: any) {
       }
     }
   } catch (error) {
-    console.warn('Error restoring project tabs:', error);
+    NotificationService.warning('Tab Restore', 'Some tabs could not be restored from previous session')
   }
 }
 
-function selectDiagram(diagramId: number) {
+function selectDiagram(diagramId: number | null) {
   selectedDiagramId.value = diagramId
   const diagram = currentProject.value?.diagrams.find(d => d.id === diagramId)
   if (diagram) {
     openDiagramInTab(diagram)
   }
-
 }
 function openDiagramInTab(diagram: Diagram) {
   // Check if tab already exists
@@ -289,13 +379,25 @@ function openDiagramInTab(diagram: Diagram) {
   // Increment tabCounter safely
   tabCounter.value++;
 
+  // Check if this is an untitled diagram
+  const isUntitled = diagram.title.startsWith('Untitled Diagram');
+
+  // Clean diagram content to remove problematic comments that break Mermaid parsing
+  let cleanContent = diagram.content || '';
+  if (cleanContent.includes('// Start creating your diagram here')) {
+    cleanContent = cleanContent.replace('// Start creating your diagram here\n', '');
+    console.log('Cleaned diagram content by removing problematic comment');
+  }
+
   // Create new tab
   const newTab: Tab = {
     id: `tab-${tabCounter.value}`,
     diagramId: diagram.id,
     title: diagram.title,
-    content: diagram.content || '',  // αν το πεδίο λέγεται mermaid_code, βάλε diagram.mermaid_code
-    isModified: false
+    content: cleanContent,
+    isModified: false,
+    isUntitled: isUntitled,
+    isInitialLoad: true // Mark as initial load to prevent modified flag
   };
 
   openTabs.value.push(newTab);
@@ -303,19 +405,20 @@ function openDiagramInTab(diagram: Diagram) {
 }
 
 function showNotification(type: string, title: string, message: string) {
-  // Simple notification system - could be enhanced with a proper notification component
-  const notification = {
-    type,
-    title,
-    message,
-    timestamp: new Date()
-  };
-
-  console.log(`[${type.toUpperCase()}] ${title}: ${message}`);
-
-  // Show browser notification if available
-  if (type === 'error') {
-    alert(`${title}: ${message}`);
+  switch (type) {
+    case 'success':
+      NotificationService.success(title, message)
+      break
+    case 'error':
+      NotificationService.error(title, message)
+      break
+    case 'warning':
+      NotificationService.warning(title, message)
+      break
+    case 'info':
+    default:
+      NotificationService.info(title, message)
+      break
   }
 }
 // Project management methods (stubs for now)
@@ -335,23 +438,24 @@ async function createProject() {
       return;
     }
 
-    // Create new project using ProjectManager
-    const projectManager = await import('../services/ProjectManager');
-    const manager = projectManager.ProjectManager.getInstance();
+    // Create new project using ProjectManager with loading state
+    await loading.withLoading(async () => {
+      const projectManager = await import('../services/ProjectManager');
+      const manager = projectManager.ProjectManager.getInstance();
 
-    const newProject = await manager.createProject(projectData.id, projectData.name, projectData.description);
+      const newProject = await manager.createProject(projectData.id, projectData.name, projectData.description);
 
-    // Switch to the new project
-    await switchToProject(newProject);
+      // Switch to the new project
+      await switchToProject(newProject);
 
-    // Show success notification
-    showNotification('success', 'Project Created',
-      `"${newProject.name}" has been created and is now active`);
+      // Show success notification
+      showNotification('success', 'Project Created',
+        `"${newProject.name}" has been created and is now active`);
+    }, 'Creating project...');
 
   } catch (error) {
-    console.error('Error creating project:', error);
-    showNotification('error', 'Creation Failed',
-      error.message || 'Failed to create project');
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create project'
+    showNotification('error', 'Creation Failed', errorMessage);
   }
 }
 
@@ -443,7 +547,7 @@ async function showCreateProjectDialog() {
     // Handle input validation
     nameInput.addEventListener('input', () => {
       const value = nameInput.value.trim();
-      const validation = this.validateProjectName(value);
+      const validation = validateProjectName(value);
 
       createBtn.disabled = !validation.isValid;
 
@@ -533,80 +637,96 @@ async function createDiagram() {
   }
 
   try {
-    const diagramName = "undefined"
-    // Create new diagram with default content
+    // Generate temporary title for new diagram
+    const existingCount = currentProject.value.diagrams.length;
+    const temporaryTitle = `Untitled Diagram ${existingCount + 1}`;
+
+    // Create diagram locally (not saved to backend yet)
     const newDiagram: Diagram = {
-      id: null,
+      id: null, // null indicates it's not saved yet
       projectId: currentProject.value.id,
-      title: diagramName,
-      content: "",
-      type: "flowchart",
+      title: temporaryTitle,
+      content: 'graph TD\n    A[Start] --> B[End]',
+      type: 'flowchart',
+      createdAt: new Date(),
+      lastModified: new Date(),
+      isModified: false
     };
 
-    // Add to current project
-    currentProject.value.diagrams.push(newDiagram)
-    
+    // Add to local project state (but not saved to backend)
+    currentProject.value.diagrams.push(newDiagram);
 
-    // Open in new tab
+    // Select the new diagram in the navigation list
+    // For new diagrams with id: null, we can use a special identifier
+    selectedDiagramId.value = null; // This will deselect any existing diagram
+
+    // Open in new tab immediately
     openDiagramInTab(newDiagram);
 
     // Show success notification
     showNotification('success', 'Diagram Created',
-      `"${diagramName}" has been created and opened for editing`);
+      `"${temporaryTitle}" has been created. It will be saved when you make changes or save manually.`);
 
   } catch (error) {
-    console.error('Error creating diagram:', error);
-    if (error instanceof Error) {
-      showNotification('error', 'Creation Failed',
-        error.message || 'Failed to create diagram');
-    }
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create diagram'
+    showNotification('error', 'Creation Failed', errorMessage);
   }
 }
 
 
 async function handleDiagramSaved(savedDiagram: any) {
-  // Βρες το active tab
+  // Find the active tab
   const tab = openTabs.value.find(t => t.id === activeTabId.value);
 
   if (tab) {
-    // Ενημέρωσε το title (νέο όνομα από backend)
+    // Update the title (new name from backend)
     tab.title = savedDiagram.title;
 
-    // // Ενημέρωσε το content (αν το backend επέστρεψε νέο περιεχόμενο, αλλιώς κράτα το δικό σου)
-    // if (savedDiagram.content !== undefined) {
-    //   tab.content = savedDiagram.content;
-    // }
+    // Update diagram ID if it was null (new diagram)
+    if (tab.diagramId === null && savedDiagram.id) {
+      tab.diagramId = savedDiagram.id;
+    }
 
-    // Καθάρισε το modified flag
+    // Clear the modified flag and untitled status
     tab.isModified = false;
+    tab.isUntitled = false;
   }
 
-  // Ενημέρωσε το diagram και μέσα στο currentProject (αν υπάρχει)
+  // Update the diagram in the current project
   const projectDiagram = currentProject.value?.diagrams.find(d => d.id === tab?.diagramId);
   if (projectDiagram) {
-    projectDiagram.title = savedDiagram.title || savedDiagram.name || projectDiagram.title;
+    projectDiagram.title = savedDiagram.title;
+    projectDiagram.id = savedDiagram.id;
     if (savedDiagram.content !== undefined) {
       projectDiagram.content = savedDiagram.content;
     }
   }
 
-  // Κλείσε το dialog
+  // Close the dialog
   showCreateDialog.value = false;
 
-  // Εμφάνισε ειδοποίηση
-  // emitNotification('Diagram saved successfully', 'success', '✅');
+  // Update selected diagram ID to match the saved diagram
+  selectedDiagramId.value = savedDiagram.id;
 }
 
 
 async function openSaveDialog(content: string) {
-  if (activeTabId.value) {
+  if (activeTabId.value && currentProject.value) {
     const diagram = openTabs.value.find(tab => tab.id === activeTabId.value);
-    
-    console.log(content)
+
     pendingSaveContent.value = content
-    saveDialogRef.value?.saveData(diagram.diagramId, diagram?.title, content)
-    const manager = projectManager.ProjectManager.getInstance();
-    currentProject.value = await manager.loadProject(currentProject.value?.id)
+    const saveDialog = saveDialogRef.value as any;
+    if (saveDialog && saveDialog.saveData) {
+      saveDialog.saveData(diagram?.diagramId, diagram?.title || '', content);
+    }
+
+    try {
+      const projectManager = await import('../services/ProjectManager');
+      const manager = projectManager.ProjectManager.getInstance();
+      currentProject.value = await manager.loadProject(currentProject.value.id);
+    } catch (error) {
+      NotificationService.error('Reload Failed', 'Failed to reload project after save')
+    }
   }
 }
 function closeAllTabs() {
@@ -615,8 +735,293 @@ function closeAllTabs() {
   activeTabId.value = null;
 }
 
+// Pane splitter functionality
+function startSplitterDrag(event: MouseEvent) {
+  event.preventDefault();
+
+  const startX = event.clientX;
+  const startWidth = navigationWidth.value;
+
+  function handleMouseMove(e: MouseEvent) {
+    const deltaX = e.clientX - startX;
+    const newWidth = Math.max(200, Math.min(600, startWidth + deltaX));
+    navigationWidth.value = newWidth;
+    updateCSSCustomProperty('--nav-width', `${newWidth}px`);
+  }
+
+  function handleMouseUp() {
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  }
+
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+}
+
+// Beforeunload handler for unsaved changes warning
+let beforeUnloadHandler: ((event: BeforeUnloadEvent) => void) | null = null;
+
+function setupBeforeUnloadHandler() {
+  beforeUnloadHandler = (event: BeforeUnloadEvent) => {
+    // Check if any tabs have unsaved changes
+    const hasUnsavedChanges = openTabs.value.some(tab => tab.isModified);
+
+    if (hasUnsavedChanges) {
+      // Standard way to show browser's beforeunload dialog
+      event.preventDefault();
+      event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+      return 'You have unsaved changes. Are you sure you want to leave?';
+    }
+  };
+
+  window.addEventListener('beforeunload', beforeUnloadHandler);
+}
+
+function removeBeforeUnloadHandler() {
+  if (beforeUnloadHandler) {
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    beforeUnloadHandler = null;
+  }
+}
+
 </script>
 
 <style scoped>
-/* Optional: Add your styles here */
+/* Tab status indicators */
+.tab-status-indicator {
+  display: flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.status-saving {
+  color: #0366d6;
+  animation: spin 1s linear infinite;
+}
+
+.status-error {
+  color: #d73a49;
+}
+
+.status-modified {
+  color: #f66a0a;
+}
+
+.status-saved {
+  color: #28a745;
+  opacity: 0.7;
+}
+
+/* Tab styling enhancements */
+.editor-tab {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.editor-tab.saving {
+  background-color: rgba(3, 102, 214, 0.05);
+  border-left: 2px solid #0366d6;
+}
+
+.editor-tab.error {
+  background-color: rgba(215, 58, 73, 0.05);
+  border-left: 2px solid #d73a49;
+}
+
+.editor-tab.has-changes {
+  background-color: rgba(246, 106, 10, 0.05);
+  border-left: 2px solid #f66a0a;
+}
+
+/* Spin animation for saving indicator */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Enhanced tab close button */
+.tab-close {
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.tab-close:hover {
+  opacity: 1;
+}
+
+.editor-tab.has-changes .tab-close {
+  color: #f66a0a;
+}
+
+.editor-tab.error .tab-close {
+  color: #d73a49;
+}
+
+/* Project workspace layout */
+.project-workspace {
+  display: grid;
+  grid-template-columns: var(--nav-width, 300px) auto 1fr;
+  grid-template-areas: "nav splitter editor";
+  height: 100vh;
+  transition: grid-template-columns 0.3s ease;
+}
+
+.project-workspace.nav-collapsed {
+  grid-template-columns: 0 0 1fr;
+}
+
+.navigation-pane {
+  grid-area: nav;
+  background-color: #f6f8fa;
+  border-right: 1px solid #d1d5da;
+  overflow-y: auto;
+}
+
+.pane-splitter {
+  grid-area: splitter;
+  width: 4px;
+  background-color: #d1d5da;
+  cursor: col-resize;
+  position: relative;
+}
+
+.pane-splitter:hover {
+  background-color: #0366d6;
+}
+
+.splitter-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 20px;
+  background-color: #586069;
+  border-radius: 1px;
+}
+
+.editor-pane {
+  grid-area: editor;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Navigation toggle */
+.nav-toggle {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+}
+
+.nav-toggle-btn {
+  background: #f6f8fa;
+  border: 1px solid #d1d5da;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.nav-toggle-btn:hover {
+  background: #e1e4e8;
+}
+
+/* Tab bar */
+.tab-bar {
+  display: flex;
+  background-color: #f6f8fa;
+  border-bottom: 1px solid #d1d5da;
+  overflow-x: auto;
+  padding-top: 2rem;
+  /* Space for nav toggle */
+}
+
+.editor-tab {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5da;
+  border-bottom: none;
+  background-color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.editor-tab:not(:first-child) {
+  border-left: none;
+}
+
+.editor-tab.active {
+  background-color: #ffffff;
+  border-bottom: 1px solid #ffffff;
+  position: relative;
+  z-index: 1;
+}
+
+.tab-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.875rem;
+}
+
+.tab-close {
+  margin-left: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+
+.tab-close:hover {
+  background-color: #e1e4e8;
+}
+
+/* Tab content */
+.tab-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.empty-editor-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background-color: #fafbfc;
+}
+
+.empty-message {
+  text-align: center;
+  color: #586069;
+}
+
+.empty-message h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+}
+
+.empty-message p {
+  margin: 0;
+  font-size: 0.875rem;
+}
 </style>

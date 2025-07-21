@@ -2,74 +2,75 @@
 
 ## Overview
 
-This design transforms the application from a single-diagram editor into a comprehensive project-based workspace with backend integration. The new architecture leverages the Solution Outline Assistant API for project and diagram persistence, implements a modular component structure, and provides a dual-pane interface with collapsible navigation and tabbed editing.
+This design addresses critical issues in the current diagram management system by implementing complete backend integration, fixing type safety problems, establishing comprehensive user feedback systems, and creating robust diagram creation and saving workflows. The solution focuses on reliability, user experience, and maintainability while preserving existing functionality.
 
-The solution involves integrating with the existing backend API, creating modular components with centralized CSS, implementing a streamlined diagram creation workflow, and maintaining all existing editor functionality while adding robust project-level management capabilities.
+The design emphasizes proper error handling, loading states, backend synchronization, and type safety to create a production-ready diagram management system that users can rely on for their work.
 
 ## Architecture
 
-### Current Architecture Limitations
-- Single-diagram editing interface limits productivity for complex projects
-- localStorage-based persistence lacks reliability and cross-device access
-- Monolithic MermaidRenderer component with mixed responsibilities
-- Duplicated CSS across components leading to maintenance issues
-- Interrupting diagram creation workflow with immediate naming requirements
+### Current System Issues
+- **Incomplete Backend Integration**: Diagram creation uses local state instead of immediate backend persistence
+- **Type Safety Problems**: Inconsistent ID types (string vs number) causing runtime errors
+- **Poor User Feedback**: Primitive notification system using console.log and alert()
+- **Broken Save Workflow**: Complex save dialog logic with inconsistent state management
+- **Missing Error Handling**: No proper error recovery or retry mechanisms
 
-### New Backend-Integrated Architecture
-The new architecture transforms the application into a comprehensive workspace with the following key components:
+### Fixed Architecture Design
+The improved architecture addresses critical system issues with the following components:
 
-1. **Backend Integration Layer**: Interfaces with Solution Outline Assistant API
-2. **Modular Component Architecture**: Separated editor component with clean interfaces
-3. **Centralized CSS Management**: Common styles moved to main.css
-4. **Dual-Pane Layout**: Left navigation pane + right tabbed editor pane
-5. **Streamlined Workflow**: Create diagrams immediately, name on first save
+1. **Robust Backend Integration**: All operations immediately sync with Solution Outline Assistant API
+2. **Type-Safe Data Layer**: Consistent type definitions and proper null handling
+3. **Comprehensive Feedback System**: Toast notifications, loading states, and error recovery
+4. **Streamlined Save Workflow**: Name-on-first-save with proper validation and error handling
+5. **Reliable State Management**: Optimistic updates with rollback capabilities
 
 ### Architecture Components Overview
 
 ```
-ProjectWorkspace
-├── ProjectApiService (Solution Outline Assistant API client)
-├── MermaidEditorComponent (extracted, reusable editor)
-├── NavigationPane (left pane)
-│   ├── ProjectToolbar (project name + actions)
-│   └── DiagramList (backend-loaded diagram list)
-└── EditorPane (right pane)
-    ├── TabManager (manages multiple editor tabs)
-    └── MermaidRenderer[] (uses MermaidEditorComponent)
+Fixed System Architecture
+├── Enhanced ProjectApiService (with error handling & retry logic)
+├── Type-Safe Data Models (consistent ID types & null handling)
+├── Notification System (toast notifications & loading states)
+├── Improved Save Workflow (name-on-first-save with validation)
+├── Error Recovery System (retry mechanisms & user feedback)
+└── Optimistic State Management (immediate UI updates with rollback)
 ```
 
-### Backend API Integration
+### Critical Backend Integration Fixes
 
-**Solution Outline Assistant API Endpoints:**
-- `POST /projects/create` - Create new projects
-- `GET /projects/list` - List all projects
-- `GET /projects/{project_id}/outline` - Get project with diagrams
-- `POST /projects/{project_id}/diagrams/add` - Add diagram to project
-- `GET /projects/{project_id}/diagrams/list` - List project diagrams
-- `GET /projects/{project_id}/diagrams/{diagram_id}` - Get specific diagram
-- `DELETE /projects/{project_id}/diagrams/{diagram_id}/delete` - Delete diagram
+**Required API Enhancements:**
+- `PUT /projects/{project_id}/diagrams/{diagram_id}` - Update diagram content (MISSING)
+- Error handling for all existing endpoints
+- Retry logic with exponential backoff
+- Proper response validation and type mapping
+- Network connectivity detection
 
 ## Components and Interfaces
 
-### 1. Backend API Service Layer
+### 1. Enhanced Backend API Service Layer
 
-**ProjectApiService Interface:**
+**Fixed ProjectApiService Interface:**
 ```typescript
 interface ProjectApiService {
   // Project operations
   createProject(data: ProjectCreate): Promise<ProjectResponse>;
   listProjects(): Promise<ProjectResponse[]>;
-  getProjectOutline(projectId: number): Promise<ProjectOutlineResponse>;
+  getProjectOutline(projectId: string): Promise<ProjectOutlineResponse>;
   
-  // Diagram operations
-  addDiagram(projectId: number, data: DiagramCreate): Promise<DiagramResponse>;
-  listDiagrams(projectId: number): Promise<DiagramResponse[]>;
-  getDiagram(projectId: number, diagramId: number): Promise<DiagramResponse>;
-  deleteDiagram(projectId: number, diagramId: number): Promise<void>;
+  // Diagram operations (with proper error handling)
+  addDiagram(projectId: string, data: DiagramCreate): Promise<DiagramResponse>;
+  updateDiagram(projectId: string, diagramId: number, data: DiagramUpdate): Promise<DiagramResponse>;
+  getDiagram(projectId: string, diagramId: number): Promise<DiagramResponse>;
+  deleteDiagram(projectId: string, diagramId: number): Promise<void>;
+  
+  // Error handling and retry logic
+  handleApiError(error: AxiosError): Promise<never>;
+  retryRequest<T>(request: () => Promise<T>, maxRetries: number): Promise<T>;
 }
 
-// API Data Models (matching backend schema)
+// Fixed API Data Models (consistent types)
 interface ProjectCreate {
+  id: string;
   name: string;
   description?: string;
 }
@@ -77,7 +78,13 @@ interface ProjectCreate {
 interface DiagramCreate {
   title: string;
   mermaid_code: string;
-  type: DiagramType; // 'Flowchart' | 'Sequence' | 'Gantt'
+  type: DiagramType;
+}
+
+interface DiagramUpdate {
+  title?: string;
+  mermaid_code?: string;
+  type?: DiagramType;
 }
 
 interface DiagramResponse {
@@ -85,6 +92,8 @@ interface DiagramResponse {
   title: string;
   mermaid_code: string;
   type: DiagramType;
+  created_at: string;
+  updated_at: string;
 }
 ```
 
