@@ -1,9 +1,9 @@
 // src/services/ProjectApiService.ts
 
 import axios, { AxiosError, AxiosResponse, AxiosRequestConfig } from 'axios';
-import { Project, Diagram, Requirement, Task, Team, DiagramType } from '../types/project';
+import { Project, Diagram, Requirement, Task, Team, DiagramType, UploadedFile } from '../types/project';
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = 'http://localhost:8000';
 
 // Error types for categorization
 export enum ApiErrorType {
@@ -465,6 +465,59 @@ export class ProjectApiService {
         assigned_to_team_id,
       });
       return response.data;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  // File upload and requirements processing methods
+  public static async uploadFilesForRequirements(projectId: string, files: File[]): Promise<Requirement[]> {
+    try {
+      const formData = new FormData();
+      files.forEach((file, index) => {
+        formData.append(`files`, file);
+      });
+
+      const response = await apiClient.post<Requirement[]>(
+        `/projects/${projectId}/requirements/upload-and-process`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 240000, // 60 seconds for file processing
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  public static async listRequirements(projectId: string): Promise<Requirement[]> {
+    try {
+      const response = await apiClient.get<Requirement[]>(`/projects/${projectId}/requirements/list`);
+      return response.data;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  public static async updateRequirement(projectId: string, requirementId: number, description: string, category: 'Functional' | 'Non-Functional'): Promise<Requirement> {
+    try {
+      const response = await apiClient.put<Requirement>(`/projects/${projectId}/requirements/${requirementId}`, {
+        description,
+        category,
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  public static async deleteRequirement(projectId: string, requirementId: number): Promise<void> {
+    try {
+      await apiClient.delete(`/projects/${projectId}/requirements/${requirementId}`);
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }

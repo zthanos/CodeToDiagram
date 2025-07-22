@@ -3,14 +3,14 @@
     <header class="app-header">
       <div class="header-content">
         <div class="header-left">
-          <img src="@/assets/logo.svg" alt="Code To Diagram Logo" class="header-logo" />
-          <h1 class="header-title">Code To Diagram</h1>
+          <img src="@/assets/logo.svg" alt="SO Assistant Logo" class="header-logo" />
+          <h1 class="header-title">SO Assistant</h1>
         </div>
 
       </div>
     </header>
     <main class="app-main">
-      <ProjectWorkspace :theme="theme" @update:theme="theme = $event" />
+      <router-view :theme="theme" @update:theme="theme = $event" />
     </main>
     
     <!-- Toast notifications -->
@@ -22,13 +22,11 @@
 </template>
 
 <script>
-import ProjectWorkspace from './components/ProjectWorkspace.vue'
 import ToastNotification from './components/ToastNotification.vue'
 import GlobalLoadingOverlay from './components/GlobalLoadingOverlay.vue'
 
 export default {
   components: {
-    ProjectWorkspace,
     ToastNotification,
     GlobalLoadingOverlay
   },

@@ -48,7 +48,7 @@
 import { ref, watch, nextTick, onMounted } from 'vue';
 import mermaid from 'mermaid';
 import CodeEditor from './CodeEditor.vue'; // import your CodeEditor component
-import { ProjectManager } from '@/services/ProjectManager';
+import { ProjectManager } from '../services/ProjectManager';
 import NotificationService from '../services/NotificationService';
 
 

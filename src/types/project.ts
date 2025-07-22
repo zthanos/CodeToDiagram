@@ -127,10 +127,21 @@ export interface Requirement {
   id: number;
   description: string;
   category: 'Functional' | 'Non-Functional';
+  source?: 'uploaded' | 'manual';
   createdAt?: Date;
   updatedAt?: Date;
   created_at?: string;
   updated_at?: string;
+}
+
+// File upload interface
+export interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  content: string | ArrayBuffer;
+  uploadedAt: Date;
 }
 
 // Task interface
@@ -153,6 +164,15 @@ export interface Team {
   updatedAt?: Date;
   created_at?: string;
   updated_at?: string;
+}
+
+// Navigation state types for workspace sections
+export type WorkspaceSection = 'requirements' | 'diagrams' | 'teams' | 'tasks' | 'notes';
+
+export interface NavigationState {
+  activeSection: WorkspaceSection;
+  sectionHistory: WorkspaceSection[];
+  lastVisited: Record<WorkspaceSection, Date>;
 }
 
 // Project reference for recent projects list

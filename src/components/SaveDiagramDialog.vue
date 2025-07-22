@@ -28,7 +28,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { ProjectManager } from '@/services/ProjectManager'
+import { ProjectManager } from '../services/ProjectManager'
 import NotificationService from '../services/NotificationService'
 import { useDialog } from '../composables/useDialog'
 import { useSingleLoading } from '../composables/useLoading'
