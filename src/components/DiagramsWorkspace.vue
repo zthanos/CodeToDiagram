@@ -1,88 +1,63 @@
 <template>
-  <div class="diagrams-workspace" :class="{ 'nav-collapsed': navigationCollapsed }">
-    <!-- Navigation Pane (Left) -->
-    <div class="navigation-pane" v-show="!navigationCollapsed">
-      <div class="diagram-toolbar">
-        <div class="project-name">
-          {{ project?.name || 'No Project' }}
-        </div>
-        <div class="toolbar-actions">
-          <button class="toolbar-btn" @click="createDiagram" title="Create New Diagram">
+  <div class="diagrams-workspace">
+    <!-- Header -->
+    <div class="workspace-header">
+      <h2 class="workspace-title">Diagrams</h2>
+      <p class="workspace-description">Create and edit Mermaid diagrams for your project.</p>
+    </div>
+
+    <!-- Editor Section -->
+    <div class="editor-section">
+
+      
+      <div  class="editor-section-content">
+        <div class="editor-toolbar">
+          <button class="add-btn" @click="createDiagram" title="Create New Diagram">
             ➕ New Diagram
           </button>
         </div>
-      </div>
 
-      <div class="diagram-list">
-        <div v-if="loading.isLoading && project.diagrams.length === 0" class="loading-state">
-          <SkeletonLoader type="list" :count="2" />
-        </div>
-        <div v-else-if="project.diagrams.length === 0" class="empty-state">
-          <p>No diagrams in this project</p>
-          <p>Add or create diagrams to begin</p>
-        </div>
-        <div v-else>
-          <div v-for="diagram in project.diagrams" :key="diagram.id || diagram.title" class="diagram-item"
-            :class="{ active: selectedDiagramId === diagram.id }" @click="selectDiagram(diagram.id)">
-            <span class="diagram-icon">📊</span>
-            <span class="diagram-name">{{ diagram.title }}</span>
-            <span v-if="diagram.isModified" class="modified-indicator">●</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pane Splitter -->
-    <div class="pane-splitter" @mousedown="startSplitterDrag" v-show="!navigationCollapsed">
-      <div class="splitter-handle"></div>
-    </div>
-
-    <!-- Editor Pane (Right) -->
-    <div class="editor-pane">
-      <!-- Navigation Toggle Button -->
-      <div class="nav-toggle">
-        <button class="nav-toggle-btn" @click="toggleNavigation"
-          :title="navigationCollapsed ? 'Show Navigation' : 'Hide Navigation'">
-          {{ navigationCollapsed ? '▶' : '◀' }}
-        </button>
-      </div>
-
-      <!-- Tab Bar -->
-      <div class="tab-bar" v-if="openTabs.length > 0">
-        <div v-for="tab in openTabs" :key="tab.id" class="editor-tab" :class="{
-          active: activeTabId === tab.id,
-          'has-changes': tab.isModified
-        }" @click="switchToTab(tab.id)">
-          <span class="tab-title">{{ tab.title }}</span>
-          <span class="tab-status-indicator">
-            <span v-if="tab.isModified" class="status-modified" title="Unsaved changes">●</span>
-            <span v-else class="status-saved" title="Saved">✓</span>
-          </span>
-          <button class="tab-close" @click.stop="closeTab(tab.id)"
-            :title="tab.isModified ? 'Close (unsaved changes)' : 'Close'">×</button>
-        </div>
-      </div>
-
-      <!-- Tab Content -->
-      <div class="tab-content">
         <div v-if="openTabs.length === 0" class="empty-editor-state">
           <div class="empty-message">
-            <h3>Welcome to SO Assistant</h3>
-            <p>Create or select a diagram to get started</p>
+            <div class="empty-icon">📊</div>
+            <h4>No diagrams open</h4>
+            <p>Create a new diagram or select one from the list below to start editing.</p>
           </div>
         </div>
-        <div v-else style="height: 100%;">
-          <!-- Active Editor Instance -->
-          <MermaidRenderer v-for="tab in openTabs" :key="tab.id" v-show="activeTabId === tab.id" :theme="theme"
-            :diagram-id="tab.diagramId" @update:theme="$emit('update:theme', $event)"
-            @content-changed="handleContentChanged(tab.id, $event)" ref="editorInstances"
-            @request-save="openSaveDialog" />
+        
+        <div v-else class="editor-container">
+          <!-- Tab Bar -->
+          <div class="tab-bar">
+            <div v-for="tab in openTabs" :key="tab.id" class="editor-tab" :class="{
+              active: activeTabId === tab.id,
+              'has-changes': tab.isModified
+            }" @click="switchToTab(tab.id)">
+              <span class="tab-title">{{ tab.title }}</span>
+              <span class="tab-status-indicator">
+                <span v-if="tab.isModified" class="status-modified" title="Unsaved changes">●</span>
+                <span v-else class="status-saved" title="Saved">✓</span>
+              </span>
+              <button class="tab-close" @click.stop="closeTab(tab.id)"
+                :title="tab.isModified ? 'Close (unsaved changes)' : 'Close'">×</button>
+            </div>
+          </div>
 
-          <SaveDiagramDialog ref="saveDialogRef" :projectId="project?.id || ''" :diagramId="selectedDiagramId"
-            :content="pendingSaveContent" @saved="handleDiagramSaved" @cancelled="showCreateDialog = false" />
+          <!-- Editor Content -->
+          <div class="editor-content">
+            <MermaidRenderer v-for="tab in openTabs" :key="tab.id" v-show="activeTabId === tab.id" :theme="theme"
+              :diagram-id="tab.diagramId" @update:theme="$emit('update:theme', $event)"
+              @content-changed="handleContentChanged(tab.id, $event)" ref="editorInstances"
+              @request-save="openSaveDialog" />
+          </div>
         </div>
       </div>
     </div>
+
+
+
+    <!-- Save Dialog -->
+    <SaveDiagramDialog ref="saveDialogRef" :projectId="project?.id || ''" :diagramId="selectedDiagramId"
+      :content="pendingSaveContent" @saved="handleDiagramSaved" @cancelled="showCreateDialog = false" />
   </div>
 </template>
 
@@ -90,7 +65,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import MermaidRenderer from './MermaidRenderer.vue'
 import SaveDiagramDialog from './SaveDiagramDialog.vue'
-import SkeletonLoader from './SkeletonLoader.vue'
+
 import { Project, Diagram } from '../types/project'
 import NotificationService from '../services/NotificationService'
 import { useDialog } from '../composables/useDialog'
@@ -118,8 +93,6 @@ const emit = defineEmits<{
 }>()
 
 // State
-const navigationCollapsed = ref(false)
-const navigationWidth = ref(300)
 const selectedDiagramId = ref<number | null>(null)
 const openTabs = ref<Tab[]>([])
 const activeTabId = ref<string | null>(null)
@@ -127,6 +100,7 @@ const pendingSaveContent = ref('')
 const showCreateDialog = ref(false)
 const tabCounter = ref(0)
 const saveDialogRef = ref(null)
+const isEditorSectionExpanded = ref(true)
 
 // Composables
 const dialog = useDialog()
@@ -180,13 +154,7 @@ function handleContentChanged(tabId: string, newContent: string) {
   }
 }
 
-function toggleNavigation() {
-  navigationCollapsed.value = !navigationCollapsed.value
-  updateCSSCustomProperty('--nav-width', navigationCollapsed.value ? '0px' : `${navigationWidth.value}px`)
-  nextTick(() => {
-    // Editor resize handled automatically - no notification needed
-  })
-}
+// Removed toggleNavigation as it's no longer needed in the new design
 
 function switchToTab(tabId: string) {
   activeTabId.value = tabId
@@ -201,10 +169,9 @@ async function closeTab(tabId: string) {
 
   // Check for unsaved changes
   if (tab.isModified) {
-    const shouldClose = await dialog.confirm(
+    const shouldClose = await dialog.warning(
       'Unsaved Changes',
-      `"${tab.title}" has unsaved changes. Do you want to close it anyway?`,
-      'warning'
+      `"${tab.title}" has unsaved changes. Do you want to close it anyway?`
     )
 
     if (!shouldClose) {
@@ -376,28 +343,7 @@ function closeAllTabs() {
   activeTabId.value = null
 }
 
-// Pane splitter functionality
-function startSplitterDrag(event: MouseEvent) {
-  event.preventDefault()
-
-  const startX = event.clientX
-  const startWidth = navigationWidth.value
-
-  function handleMouseMove(e: MouseEvent) {
-    const deltaX = e.clientX - startX
-    const newWidth = Math.max(200, Math.min(600, startWidth + deltaX))
-    navigationWidth.value = newWidth
-    updateCSSCustomProperty('--nav-width', `${newWidth}px`)
-  }
-
-  function handleMouseUp() {
-    document.removeEventListener('mousemove', handleMouseMove)
-    document.removeEventListener('mouseup', handleMouseUp)
-  }
-
-  document.addEventListener('mousemove', handleMouseMove)
-  document.addEventListener('mouseup', handleMouseUp)
-}
+// Removed pane splitter functionality as it's no longer needed in the new design
 
 // Beforeunload handler for unsaved changes warning
 let beforeUnloadHandler: ((event: BeforeUnloadEvent) => void) | null = null
@@ -425,6 +371,21 @@ function removeBeforeUnloadHandler() {
   }
 }
 
+// New methods for the redesigned interface
+function toggleEditorSection() {
+  isEditorSectionExpanded.value = !isEditorSectionExpanded.value
+}
+
+// Auto-open all diagrams as tabs when component loads
+onMounted(() => {
+  // Open all existing diagrams as tabs
+  if (props.project?.diagrams?.length > 0) {
+    props.project.diagrams.forEach(diagram => {
+      openDiagramInTab(diagram)
+    })
+  }
+})
+
 // Expose methods for parent component
 defineExpose({
   closeAllTabs,
@@ -434,230 +395,165 @@ defineExpose({
 </script>
 
 <style scoped>
-/* Tab status indicators */
-.tab-status-indicator {
-  display: flex;
-  align-items: center;
-  margin-left: 0.5rem;
-  font-size: 0.75rem;
-}
-
-.status-modified {
-  color: #f66a0a;
-}
-
-.status-saved {
-  color: #28a745;
-  opacity: 0.7;
-}
-
-/* Tab styling enhancements */
-.editor-tab {
-  position: relative;
-  transition: all 0.2s ease;
-}
-
-.editor-tab.has-changes {
-  background-color: rgba(246, 106, 10, 0.05);
-  border-left: 2px solid #f66a0a;
-}
-
-/* Enhanced tab close button */
-.tab-close {
-  opacity: 0.6;
-  transition: opacity 0.2s ease;
-}
-
-.tab-close:hover {
-  opacity: 1;
-}
-
-.editor-tab.has-changes .tab-close {
-  color: #f66a0a;
-}
-
-/* Diagrams workspace layout */
 .diagrams-workspace {
-  display: grid;
-  grid-template-columns: var(--nav-width, 300px) auto 1fr;
-  grid-template-areas: "nav splitter editor";
-  height: 100vh;
-  transition: grid-template-columns 0.3s ease;
+  padding: 24px;
+  margin: 0 auto;
+  height: 90vh;
+  margin-bottom: 150px;
 }
 
-.diagrams-workspace.nav-collapsed {
-  grid-template-columns: 0 0 1fr;
+.workspace-header {
+  margin-bottom: 32px;
 }
 
-.navigation-pane {
-  grid-area: nav;
-  background-color: #f6f8fa;
-  border-right: 1px solid #d1d5da;
+.workspace-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
+}
+
+.workspace-description {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+  
+}
+
+/* Editor Section */
+.editor-section {
+
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 100px;
+  width: 100%;
+}
+
+.editor-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 16px;
+  padding: 8px 0;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.editor-section-header:hover {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.editor-section-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.collapse-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.collapse-btn:hover {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.collapse-btn.collapsed {
+  transform: rotate(-90deg);
+}
+
+.editor-section-content {
+  animation: slideDown 0.3s ease-out;
   overflow-y: auto;
 }
 
-.pane-splitter {
-  grid-area: splitter;
-  width: 4px;
-  background-color: #d1d5da;
-  cursor: col-resize;
-  position: relative;
-}
-
-.pane-splitter:hover {
-  background-color: #0366d6;
-}
-
-.splitter-handle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 2px;
-  height: 20px;
-  background-color: #586069;
-  border-radius: 1px;
-}
-
-.editor-pane {
-  grid-area: editor;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Navigation toggle */
-.nav-toggle {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 10;
-}
-
-.nav-toggle-btn {
-  background: #f6f8fa;
-  border: 1px solid #d1d5da;
-  border-radius: 4px;
-  padding: 0.25rem 0.5rem;
-  cursor: pointer;
-  font-size: 0.75rem;
-}
-
-.nav-toggle-btn:hover {
-  background: #e1e4e8;
-}
-
-/* Diagram toolbar */
-.diagram-toolbar {
-  padding: 1rem;
-  border-bottom: 1px solid #d1d5da;
-  background-color: #ffffff;
-}
-
-.project-name {
-  font-weight: 600;
-  color: #24292f;
-  margin-bottom: 0.5rem;
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 0.5rem;
+.editor-toolbar {
+  margin-bottom: 16px;
+  text-align: right;
 }
 
 .toolbar-btn {
-  background: #f6f8fa;
-  border: 1px solid #d1d5da;
-  border-radius: 4px;
-  padding: 0.25rem 0.5rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 500;
   cursor: pointer;
-  font-size: 0.75rem;
   transition: background-color 0.2s ease;
 }
 
 .toolbar-btn:hover {
-  background: #e1e4e8;
+  background: #2563eb;
 }
 
-/* Diagram list */
-.diagram-list {
-  padding: 1rem;
-}
-
-.diagram-item {
-  display: flex;
-  align-items: center;
-  padding: 0.5rem;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-}
-
-.diagram-item:hover {
-  background-color: #f6f8fa;
-}
-
-.diagram-item.active {
-  background-color: #e1f5fe;
-  border-left: 3px solid #0366d6;
-}
-
-.diagram-icon {
-  margin-right: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.diagram-name {
-  flex: 1;
-  font-size: 0.875rem;
-  color: #24292f;
-}
-
-.modified-indicator {
-  color: #f66a0a;
-  font-weight: bold;
-}
-
-/* Empty states */
-.empty-state {
+.empty-editor-state {
   text-align: center;
-  color: #586069;
-  padding: 2rem 1rem;
+  padding: 48px 24px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
 }
 
-.empty-state p {
-  margin: 0.25rem 0;
-  font-size: 0.875rem;
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
 }
 
-.loading-state {
-  padding: 1rem;
+.empty-message h4 {
+  font-size: 18px;
+  font-weight: 500;
+  color: #374151;
+  margin: 0 0 8px 0;
 }
 
-/* Tab bar */
+.empty-message p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.editor-container {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+/* Tab Bar */
 .tab-bar {
   display: flex;
-  background-color: #f6f8fa;
-  border-bottom: 1px solid #d1d5da;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e5e7eb;
   overflow-x: auto;
-  padding-top: 2rem;
 }
 
 .editor-tab {
   display: flex;
   align-items: center;
-  padding: 0.5rem 1rem;
-  border: 1px solid #d1d5da;
-  border-bottom: none;
-  background-color: #ffffff;
+  padding: 12px 16px;
+  border-right: 1px solid #e5e7eb;
+  background-color: #f8f9fa;
   cursor: pointer;
   white-space: nowrap;
   min-width: 120px;
   max-width: 200px;
+  transition: all 0.2s ease;
 }
 
-.editor-tab:not(:first-child) {
-  border-left: none;
+.editor-tab:hover {
+  background-color: #e5e7eb;
 }
 
 .editor-tab.active {
@@ -667,60 +563,88 @@ defineExpose({
   z-index: 1;
 }
 
+.editor-tab.has-changes {
+  background-color: rgba(246, 106, 10, 0.05);
+  border-left: 2px solid #f66a0a;
+}
+
 .tab-title {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.875rem;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tab-status-indicator {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+.status-modified {
+  color: #f66a0a;
+}
+
+.status-saved {
+  color: #10b981;
+  opacity: 0.7;
 }
 
 .tab-close {
-  margin-left: 0.5rem;
+  margin-left: 8px;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 16px;
   line-height: 1;
-  padding: 0;
-  width: 16px;
-  height: 16px;
+  padding: 2px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: all 0.2s ease;
 }
 
 .tab-close:hover {
-  background-color: #e1e4e8;
+  background-color: #e5e7eb;
+  opacity: 1;
 }
 
-/* Tab content */
-.tab-content {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
+.editor-tab.has-changes .tab-close {
+  color: #f66a0a;
 }
 
-.empty-editor-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  background-color: #fafbfc;
+.editor-content {
+  min-height: 400px;
+  background: white;
 }
 
-.empty-message {
-  text-align: center;
-  color: #586069;
+.add-btn {
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
 }
 
-.empty-message h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.25rem;
-}
 
-.empty-message p {
-  margin: 0;
-  font-size: 0.875rem;
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+  }
 }
 </style>
