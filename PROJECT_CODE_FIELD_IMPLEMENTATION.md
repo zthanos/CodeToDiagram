@@ -9,10 +9,19 @@ Added the missing `code` field to the project creation flow across UI, DTO, and 
 - Added `code: string` field to the `Project` interface
 - Added optional `state?: 'active' | 'inactive' | 'archived'` field for project state management
 
-### 2. API Service Layer (`src/services/ProjectApiService.ts`)
+### 2. API Configuration System (`src/config/api.ts`)
+- Created centralized API configuration system
+- Added configurable API versioning support
+- Environment variable support for API settings
+- Helper functions for generating versioned endpoints
+- Runtime configuration updates capability
+
+### 3. API Service Layer (`src/services/ProjectApiService.ts`)
 - Updated `createProject` method to accept `code` and `state` parameters
-- Changed API endpoint from `/projects/create` to `/api/v1/projects` to match specification
+- Implemented configurable API versioning for all endpoints
+- Changed all API endpoints to use `/api/v1/` prefix (configurable)
 - Updated method signature: `createProject(id, name, description?, code?, state?)`
+- All endpoints now use `getVersionedPath()` helper for consistent versioning
 
 ### 3. Business Logic Layer (`src/services/ProjectManager.ts`)
 - Updated `createProject` method to handle the new `code` parameter
@@ -50,10 +59,10 @@ Added the missing `code` field to the project creation flow across UI, DTO, and 
 
 ## API Specification Compliance
 
-The implementation now matches the specified API request format:
+The implementation now matches the specified API request format with configurable versioning:
 
 ```json
-POST /api/v1/projects
+POST /api/{version}/projects  (default: /api/v1/projects)
 {
   "name": "string",
   "description": "string",
@@ -62,6 +71,34 @@ POST /api/v1/projects
   "id": "string"
 }
 ```
+
+### Configurable API Versioning
+
+All API endpoints now support configurable versioning:
+
+- **Environment Variable**: `VITE_API_VERSION` (default: "v1")
+- **Pattern**: `/api/{version}/{endpoint}`
+- **Runtime Configuration**: Can be updated via `updateApiConfig()`
+
+### Updated Endpoints
+
+All endpoints have been updated to use the versioned pattern:
+
+- `GET /api/v1/projects`
+- `POST /api/v1/projects`
+- `GET /api/v1/projects/{id}/outline`
+- `POST /api/v1/projects/{id}/diagrams/add`
+- `PUT /api/v1/projects/{id}/diagrams/{diagramId}`
+- `GET /api/v1/projects/{id}/diagrams/{diagramId}`
+- `GET /api/v1/projects/{id}/diagrams/list`
+- `DELETE /api/v1/projects/{id}/diagrams/{diagramId}/delete`
+- `POST /api/v1/projects/{id}/requirements/add`
+- `GET /api/v1/projects/{id}/requirements/list`
+- `PUT /api/v1/projects/{id}/requirements/{requirementId}`
+- `DELETE /api/v1/projects/{id}/requirements/{requirementId}`
+- `POST /api/v1/projects/{id}/teams/assign`
+- `POST /api/v1/projects/{id}/tasks/create`
+- `POST /api/v1/projects/{id}/requirements/upload-and-process`
 
 ## Validation Rules
 
@@ -109,6 +146,19 @@ When testing the implementation:
 4. Validate that created projects include all required fields
 5. Test form validation and error handling in UI components
 
+## Configuration Files Added
+
+### 1. API Configuration (`src/config/api.ts`)
+- Centralized API configuration management
+- Environment variable support
+- Runtime configuration updates
+- Helper functions for endpoint generation
+
+### 2. Environment Example (`.env.example`)
+- Template for environment configuration
+- API version, timeout, and retry settings
+- Development and production configurations
+
 ## Future Enhancements
 
 Potential improvements for future iterations:
@@ -117,3 +167,6 @@ Potential improvements for future iterations:
 3. Code prefix configuration per organization
 4. Bulk project import with code validation
 5. Project code search and filtering capabilities
+6. API version migration utilities
+7. Backward compatibility layer for legacy endpoints
+8. API version-specific feature flags

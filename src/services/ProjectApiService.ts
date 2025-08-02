@@ -1,9 +1,8 @@
 // src/services/ProjectApiService.ts
 
 import axios, { AxiosError, AxiosResponse, AxiosRequestConfig } from 'axios';
-import { Project, Diagram, Requirement, Task, Team, DiagramType, UploadedFile } from '../types/project';
-
-const API_BASE_URL = 'http://localhost:8000';
+import { Project, Diagram, Requirement, Task, Team, DiagramType } from '../types/project';
+import { apiConfig, getVersionedPath } from '../config/api';
 
 // Error types for categorization
 export enum ApiErrorType {
@@ -25,8 +24,8 @@ export interface ApiErrorInfo {
 
 // Create axios instance with default configuration
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000, // 30 seconds timeout
+  baseURL: apiConfig.baseUrl,
+  timeout: apiConfig.timeout,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -38,8 +37,8 @@ window.addEventListener('online', () => { isOnline = true; });
 window.addEventListener('offline', () => { isOnline = false; });
 
 export class ProjectApiService {
-  private static maxRetries = 3;
-  private static baseDelay = 1000; // 1 second
+  private static maxRetries = apiConfig.maxRetries;
+  private static baseDelay = apiConfig.retryDelay;
 
   /**
    * Initialize API service with interceptors
@@ -283,7 +282,7 @@ export class ProjectApiService {
   }
   public static async listProjects(): Promise<Project[]> {
     try {
-      const response = await apiClient.get<Project[]>('/projects/list');
+      const response = await apiClient.get<Project[]>(getVersionedPath('projects'));
       return response.data;
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -292,7 +291,7 @@ export class ProjectApiService {
 
   public static async createProject(id: string, name: string, description?: string, code?: string, state?: string): Promise<Project> {
     try {
-      const response = await apiClient.post<Project>('/api/v1/projects', { 
+      const response = await apiClient.post<Project>(getVersionedPath('projects'), { 
         id, 
         name, 
         description, 
@@ -307,7 +306,7 @@ export class ProjectApiService {
 
   public static async getProjectOutline(projectId: string): Promise<Project> {
     try {
-      const response = await apiClient.get<Project>(`/projects/${projectId}/outline`);
+      const response = await apiClient.get<Project>(getVersionedPath(`projects/${projectId}/outline`));
       return response.data;
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -316,7 +315,7 @@ export class ProjectApiService {
 
   public static async addDiagram(projectId: string, title: string, mermaid_code: string, type: string): Promise<Diagram> {
     try {
-      const response = await apiClient.post<Diagram>(`/projects/${projectId}/diagrams/add`, {
+      const response = await apiClient.post<Diagram>(getVersionedPath(`projects/${projectId}/diagrams/add`), {
         title,
         mermaid_code,
         type,
@@ -329,7 +328,7 @@ export class ProjectApiService {
 
   public static async updateDiagram(projectId: string, diagramId: number, title: string, mermaid_code: string, type: string): Promise<Diagram> {
     try {
-      const response = await apiClient.put<Diagram>(`/projects/${projectId}/diagrams/${diagramId}`, {
+      const response = await apiClient.put<Diagram>(getVersionedPath(`projects/${projectId}/diagrams/${diagramId}`), {
         title,
         mermaid_code,
         type,
@@ -342,7 +341,7 @@ export class ProjectApiService {
 
   public static async getDiagram(projectId: string, diagramId: number): Promise<Diagram> {
     try {
-      const response = await apiClient.get<Diagram>(`/projects/${projectId}/diagrams/${diagramId}`);
+      const response = await apiClient.get<Diagram>(getVersionedPath(`projects/${projectId}/diagrams/${diagramId}`));
       return this.mapToDiagram(response.data, projectId);
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -424,7 +423,7 @@ export class ProjectApiService {
 
   public static async listDiagrams(projectId: string): Promise<Diagram[]> {
     try {
-      const response = await apiClient.get<Diagram[]>(`/projects/${projectId}/diagrams/list`);
+      const response = await apiClient.get<Diagram[]>(getVersionedPath(`projects/${projectId}/diagrams/list`));
       return response.data.map(diagram => this.mapToDiagram(diagram, projectId));
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -433,7 +432,7 @@ export class ProjectApiService {
 
   public static async deleteDiagram(projectId: string, diagramId: number): Promise<any> {
     try {
-      const response = await apiClient.delete(`/projects/${projectId}/diagrams/${diagramId}/delete`);
+      const response = await apiClient.delete(getVersionedPath(`projects/${projectId}/diagrams/${diagramId}/delete`));
       return response.data;
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -442,7 +441,7 @@ export class ProjectApiService {
 
   public static async addRequirement(projectId: string, description: string, category: 'Functional' | 'Non-Functional'): Promise<Requirement> {
     try {
-      const response = await apiClient.post<Requirement>(`/projects/${projectId}/requirements/add`, {
+      const response = await apiClient.post<Requirement>(getVersionedPath(`projects/${projectId}/requirements/add`), {
         description,
         category,
       });
@@ -454,7 +453,7 @@ export class ProjectApiService {
 
   public static async assignTeam(projectId: string, name: string, members?: string): Promise<Team> {
     try {
-      const response = await apiClient.post<Team>(`/projects/${projectId}/teams/assign`, {
+      const response = await apiClient.post<Team>(getVersionedPath(`projects/${projectId}/teams/assign`), {
         name,
         members,
       });
@@ -466,7 +465,7 @@ export class ProjectApiService {
 
   public static async createTask(projectId: string, description: string, assigned_to_team_id?: number): Promise<Task> {
     try {
-      const response = await apiClient.post<Task>(`/projects/${projectId}/tasks/create`, {
+      const response = await apiClient.post<Task>(getVersionedPath(`projects/${projectId}/tasks/create`), {
         description,
         assigned_to_team_id,
       });
@@ -480,18 +479,18 @@ export class ProjectApiService {
   public static async uploadFilesForRequirements(projectId: string, files: File[]): Promise<Requirement[]> {
     try {
       const formData = new FormData();
-      files.forEach((file, index) => {
+      files.forEach((file) => {
         formData.append(`files`, file);
       });
 
       const response = await apiClient.post<Requirement[]>(
-        `/projects/${projectId}/requirements/upload-and-process`,
+        getVersionedPath(`projects/${projectId}/requirements/upload-and-process`),
         formData,
         {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
-          timeout: 240000, // 60 seconds for file processing
+          timeout: 240000, // 4 minutes for file processing
         }
       );
       return response.data;
@@ -502,7 +501,7 @@ export class ProjectApiService {
 
   public static async listRequirements(projectId: string): Promise<Requirement[]> {
     try {
-      const response = await apiClient.get<Requirement[]>(`/projects/${projectId}/requirements/list`);
+      const response = await apiClient.get<Requirement[]>(getVersionedPath(`projects/${projectId}/requirements/list`));
       return response.data;
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -511,7 +510,7 @@ export class ProjectApiService {
 
   public static async updateRequirement(projectId: string, requirementId: number, description: string, category: 'Functional' | 'Non-Functional'): Promise<Requirement> {
     try {
-      const response = await apiClient.put<Requirement>(`/projects/${projectId}/requirements/${requirementId}`, {
+      const response = await apiClient.put<Requirement>(getVersionedPath(`projects/${projectId}/requirements/${requirementId}`), {
         description,
         category,
       });
@@ -523,7 +522,7 @@ export class ProjectApiService {
 
   public static async deleteRequirement(projectId: string, requirementId: number): Promise<void> {
     try {
-      await apiClient.delete(`/projects/${projectId}/requirements/${requirementId}`);
+      await apiClient.delete(getVersionedPath(`projects/${projectId}/requirements/${requirementId}`));
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }
