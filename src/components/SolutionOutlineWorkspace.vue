@@ -84,7 +84,7 @@ List the technical specifications and constraints..."
           <!-- Chat Tab -->
           <div v-if="activeTab === 'chat'" class="chat-tab">
             <div class="chat-container">
-              <div class="chat-messages" ref="chatMessages">
+              <div class="chat-messages" ref="chatMessagesContainer">
                 <div v-if="chatMessages.length === 0" class="empty-chat">
                   <div class="welcome-message">
                     <h4>🤖 AI Assistant</h4>
@@ -184,7 +184,14 @@ List the technical specifications and constraints..."
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { ProjectApiService } from '../services/ProjectApiService'
-import { marked } from 'marked'
+// Import marked with fallback
+let marked: any
+try {
+  marked = require('marked').marked
+} catch (e) {
+  // Fallback if marked is not installed
+  marked = (text: string) => text.replace(/\n/g, '<br>')
+}
 
 interface ChatMessage {
   type: 'user' | 'ai'
@@ -229,7 +236,7 @@ const currentMessage = ref('')
 const isStreaming = ref(false)
 const streamingContent = ref('')
 const chatInput = ref<HTMLTextAreaElement>()
-const chatMessages_ref = ref<HTMLDivElement>()
+const chatMessagesContainer = ref<HTMLDivElement>()
 const eventSource = ref<EventSource | null>(null)
 
 // Auto-save timer
@@ -248,6 +255,13 @@ const renderedMarkdown = computed(() => {
 
 // Lifecycle
 onMounted(async () => {
+  console.log('SolutionOutlineWorkspace mounted, chatMessages:', chatMessages.value)
+  
+  // Ensure chatMessages is properly initialized
+  if (!Array.isArray(chatMessages.value)) {
+    chatMessages.value = []
+  }
+  
   await loadSolutionOutline()
   setupAutoSave()
 })
@@ -361,10 +375,18 @@ function resetAutoSaveTimer() {
 async function sendMessage() {
   if (!currentMessage.value.trim() || isStreaming.value) return
   
+  console.log('chatMessages before push:', chatMessages.value, 'type:', typeof chatMessages.value)
+  
   const userMessage: ChatMessage = {
     type: 'user',
     content: currentMessage.value.trim(),
     timestamp: new Date()
+  }
+  
+  // Ensure chatMessages is properly initialized
+  if (!Array.isArray(chatMessages.value)) {
+    console.error('chatMessages is not an array:', chatMessages.value)
+    chatMessages.value = []
   }
   
   chatMessages.value.push(userMessage)
@@ -397,7 +419,8 @@ Project context:
 Please provide helpful, specific advice about the solution outline. Be concise and actionable.`
 
     // Use the direct streaming endpoint
-    const response = await fetch(`${ProjectApiService.apiConfig?.baseUrl || 'http://localhost:8000'}/api/v1/llm/stream`, {
+    const baseUrl = 'http://localhost:8000' // Use direct URL since apiConfig might not be available
+    const response = await fetch(`${baseUrl}/api/v1/llm/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -469,7 +492,7 @@ Please provide helpful, specific advice about the solution outline. Be concise a
       const response = await ProjectApiService.generateLLMResponse(prompt, systemPrompt)
       const aiMessage: ChatMessage = {
         type: 'ai',
-        content: response.content || 'Sorry, I encountered an error processing your request.',
+        content: response.content || response.response || 'Sorry, I encountered an error processing your request.',
         timestamp: new Date()
       }
       chatMessages.value.push(aiMessage)
@@ -506,7 +529,7 @@ function adjustTextareaHeight() {
 }
 
 function scrollChatToBottom() {
-  const container = chatMessages_ref.value
+  const container = chatMessagesContainer.value
   if (container) {
     container.scrollTop = container.scrollHeight
   }
