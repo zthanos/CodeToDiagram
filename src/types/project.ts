@@ -169,7 +169,7 @@ export interface Team {
 }
 
 // Navigation state types for workspace sections
-export type WorkspaceSection = 'requirements' | 'diagrams' | 'teams' | 'tasks' | 'notes';
+export type WorkspaceSection = 'requirements' | 'diagrams' | 'teams' | 'tasks' | 'notes' | 'solution-outline';
 
 export interface NavigationState {
   activeSection: WorkspaceSection;

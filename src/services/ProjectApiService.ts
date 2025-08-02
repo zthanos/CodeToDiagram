@@ -56,12 +56,12 @@ export class ProjectApiService {
       (config) => {
         // Add request timestamp for timeout tracking
         (config as any).metadata = { startTime: new Date() };
-        
+
         // Log request in development (using notification service for consistency)
         if (import.meta.env?.DEV) {
           // Development logging - could be enhanced with debug notification service
         }
-        
+
         return config;
       },
       (error) => {
@@ -80,30 +80,30 @@ export class ProjectApiService {
         if (import.meta.env?.DEV) {
           // Development logging - could be enhanced with debug notification service
         }
-        
+
         return response;
       },
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean; _retryCount?: number };
-        
+
         // Don't retry if already retrying or if it's not a retryable error
         if (originalRequest._retry) {
           return Promise.reject(this.handleApiError(error));
         }
-        
+
         const errorInfo = this.categorizeError(error);
-        
+
         // Retry logic for retryable errors
         if (errorInfo.canRetry && this.shouldRetry(originalRequest)) {
           originalRequest._retry = true;
           originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
-          
+
           const delay = this.calculateRetryDelay(originalRequest._retryCount);
-          
+
           // Retry logic - could be enhanced with notification service for user feedback
-          
+
           await this.delay(delay);
-          
+
           try {
             return await apiClient(originalRequest);
           } catch (retryError) {
@@ -114,7 +114,7 @@ export class ProjectApiService {
             return this.setupResponseInterceptor();
           }
         }
-        
+
         return Promise.reject(this.handleApiError(error));
       }
     );
@@ -164,7 +164,7 @@ export class ProjectApiService {
           suggestedAction: 'Verify your input data and try again'
         };
       }
-      
+
       if (status === 404) {
         return {
           type: ApiErrorType.CLIENT,
@@ -173,7 +173,7 @@ export class ProjectApiService {
           suggestedAction: 'Verify the resource exists and try again'
         };
       }
-      
+
       return {
         type: ApiErrorType.CLIENT,
         message: data?.message || `Client error (${status}). Please check your request.`,
@@ -207,7 +207,7 @@ export class ProjectApiService {
    */
   private static handleApiError(error: AxiosError): ApiErrorInfo {
     const errorInfo = this.categorizeError(error);
-    
+
     // Log error details in development
     if (import.meta.env?.DEV) {
       console.error('API Error:', {
@@ -217,7 +217,7 @@ export class ProjectApiService {
         originalError: error
       });
     }
-    
+
     return errorInfo;
   }
 
@@ -260,24 +260,24 @@ export class ProjectApiService {
     maxRetries: number = this.maxRetries
   ): Promise<T> {
     let lastError: any;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await requestFn();
       } catch (error) {
         lastError = error;
-        
+
         const errorInfo = error as ApiErrorInfo;
         if (!errorInfo.canRetry || attempt === maxRetries) {
           throw error;
         }
-        
+
         const delay = this.calculateRetryDelay(attempt);
         // Retry logic - could be enhanced with notification service for user feedback
         await this.delay(delay);
       }
     }
-    
+
     throw lastError;
   }
   public static async listProjects(): Promise<Project[]> {
@@ -291,12 +291,12 @@ export class ProjectApiService {
 
   public static async createProject(id: string, name: string, description?: string, code?: string, state?: string): Promise<Project> {
     try {
-      const response = await apiClient.post<Project>(getVersionedPath('projects'), { 
-        id, 
-        name, 
-        description, 
+      const response = await apiClient.post<Project>(getVersionedPath('projects'), {
+        id,
+        name,
+        description,
         code: code || id, // Use provided code or fallback to id
-        state: state || 'active' 
+        state: state || 'active'
       });
       return response.data;
     } catch (error) {
@@ -430,7 +430,7 @@ export class ProjectApiService {
 
     return diagram;
   }
-  
+
 
 
   public static async listDiagrams(projectId: string): Promise<Diagram[]> {
@@ -535,6 +535,94 @@ export class ProjectApiService {
   public static async deleteRequirement(projectId: string, requirementId: number): Promise<void> {
     try {
       await apiClient.delete(getVersionedPath(`projects/${projectId}/requirements/${requirementId}`));
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  // Solution Outline API methods
+  public static async getLatestSolutionOutline(projectId: string): Promise<any> {
+    try {
+      const response = await apiClient.get(getVersionedPath(`projects/${projectId}/solution-outlines/latest`));
+      return response.data;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  public static async saveSolutionOutline(projectId: string, content: string, status: string = 'draft'): Promise<any> {
+    try {
+      const response = await apiClient.post(getVersionedPath(`projects/${projectId}/solution-outlines`), {
+        content,
+        status,
+        project_id: projectId
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  // LLM API methods
+  public static async generateLLMResponse(prompt: string, systemPrompt?: string, options?: any): Promise<any> {
+    try {
+      const response = await apiClient.post(getVersionedPath('llm/generate'), {
+        prompt,
+        system_prompt: systemPrompt,
+        prompt_key: 'unknown',
+        options: options || {}
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  public static async streamLLMResponse(prompt: string, systemPrompt?: string, options?: any): Promise<EventSource> {
+    try {
+      const requestBody = {
+        prompt,
+        system_prompt: systemPrompt,
+        prompt_key: 'unknown',
+        options: options || {}
+      };
+
+      // Create EventSource for SSE streaming
+      const eventSource = new EventSource(
+        `${apiConfig.baseUrl}${getVersionedPath('llm/stream')}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody)
+        } as any
+      );
+
+      return eventSource;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  public static async connectLLMStream(): Promise<string> {
+    try {
+      const response = await apiClient.post(getVersionedPath('llm/stream/connect'));
+      return response.data.client_id;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  public static async streamToClient(clientId: string, prompt: string, systemPrompt?: string, options?: any): Promise<any> {
+    try {
+      const response = await apiClient.post(getVersionedPath(`llm/stream/${clientId}`), {
+        prompt,
+        system_prompt: systemPrompt,
+        prompt_key: 'unknown',
+        options: options || {}
+      });
+      return response.data;
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }

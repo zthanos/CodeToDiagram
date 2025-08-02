@@ -14,6 +14,15 @@
           <li class="nav-item">
             <button 
               class="nav-button" 
+              :class="{ active: activeSection === 'solution-outline' }"
+              @click="setActiveSection('solution-outline')"
+            >
+              🎯 Solution Outline
+            </button>
+          </li>
+          <li class="nav-item">
+            <button 
+              class="nav-button" 
               :class="{ active: activeSection === 'requirements' }"
               @click="setActiveSection('requirements')"
             >
@@ -76,6 +85,15 @@
       </div>
 
       <div v-else class="workspace-content">
+        <!-- Solution Outline Section -->
+        <SolutionOutlineWorkspace 
+          v-if="activeSection === 'solution-outline'"
+          :project="currentProject"
+          @create-diagram="handleCreateDiagram"
+          @open-diagram="handleOpenDiagram"
+          @switch-section="setActiveSection"
+        />
+
         <!-- Requirements Section -->
         <RequirementsWorkspace 
           v-if="activeSection === 'requirements'"
@@ -118,6 +136,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import SolutionOutlineWorkspace from './SolutionOutlineWorkspace.vue'
 import DiagramsWorkspace from './DiagramsWorkspace.vue'
 import RequirementsWorkspace from './RequirementsWorkspace.vue'
 import TeamsWorkspace from './TeamsWorkspace.vue'
@@ -143,7 +162,7 @@ const emit = defineEmits<{
 const route = useRoute()
 const router = useRouter()
 const currentProject = ref<Project | null>(null)
-const activeSection = ref<string>('diagrams') // Default to diagrams section
+const activeSection = ref<string>('solution-outline') // Default to solution outline section
 const isLoading = ref(false)
 const hasUnsavedChanges = ref(false)
 const loadError = ref<string | null>(null)
@@ -221,6 +240,21 @@ function setActiveSection(section: string) {
 function handleProjectUpdated(updatedProject: Project) {
   currentProject.value = updatedProject
   hasUnsavedChanges.value = false // Reset unsaved changes when project is updated
+}
+
+// Solution Outline event handlers
+function handleCreateDiagram(diagramData: any) {
+  // Switch to diagrams section and create a new diagram
+  activeSection.value = 'diagrams'
+  // The DiagramsWorkspace will handle the actual creation
+  // This could be enhanced to pass the diagram data to the DiagramsWorkspace
+}
+
+function handleOpenDiagram(diagram: any) {
+  // Switch to diagrams section and open the specific diagram
+  activeSection.value = 'diagrams'
+  // The DiagramsWorkspace will handle opening the diagram
+  // This could be enhanced to pass the diagram ID to the DiagramsWorkspace
 }
 
 // Unsaved changes warning setup
