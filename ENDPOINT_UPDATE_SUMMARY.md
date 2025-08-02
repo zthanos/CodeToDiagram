@@ -1,6 +1,8 @@
 # RESTful Endpoint Update Summary
 
-## Change Made
+## Changes Made
+
+### 1. Projects List Endpoint (RESTful Update)
 
 Updated the projects list endpoint to follow RESTful conventions:
 
@@ -14,14 +16,35 @@ GET /api/v1/projects/list
 GET /api/v1/projects
 ```
 
+### 2. Diagram API Upsert Endpoint
+
+Updated diagram API to use unified upsert endpoint:
+
+**Before:**
+```
+POST /api/v1/projects/{id}/diagrams/add    - Add new diagram
+PUT /api/v1/projects/{id}/diagrams/{id}    - Update existing diagram
+```
+
+**After:**
+```
+POST /api/v1/projects/{id}/diagrams        - Create or update diagram (upsert)
+```
+
 ## Rationale
 
-Following RESTful API design principles:
+### RESTful API Design Principles
 - `GET /api/v1/projects` - List all projects (collection endpoint)
 - `POST /api/v1/projects` - Create a new project
 - `GET /api/v1/projects/{id}` - Get a specific project
 - `PUT /api/v1/projects/{id}` - Update a specific project
 - `DELETE /api/v1/projects/{id}` - Delete a specific project
+
+### Unified Upsert Pattern
+- Single endpoint for create/update operations
+- Server-side logic determines create vs update
+- Simplified client implementation
+- Matches backend API design
 
 ## Files Updated
 

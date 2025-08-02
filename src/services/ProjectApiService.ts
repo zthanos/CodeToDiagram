@@ -313,30 +313,42 @@ export class ProjectApiService {
     }
   }
 
-  public static async addDiagram(projectId: string, title: string, mermaid_code: string, type: string): Promise<Diagram> {
+  /**
+   * Upsert diagram (create or update) using the unified endpoint
+   */
+  public static async upsertDiagram(projectId: string, title: string, mermaid_code: string, type: string, diagramId?: number): Promise<Diagram> {
     try {
-      const response = await apiClient.post<Diagram>(getVersionedPath(`projects/${projectId}/diagrams/add`), {
+      const requestData: any = {
         title,
         mermaid_code,
         type,
-      });
+        project_id: projectId
+      };
+
+      // Include diagram ID if provided (for updates)
+      if (diagramId !== undefined && diagramId !== null) {
+        requestData.id = diagramId;
+      }
+
+      const response = await apiClient.post<Diagram>(getVersionedPath(`projects/${projectId}/diagrams`), requestData);
       return this.mapToDiagram(response.data, projectId);
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }
   }
 
+  /**
+   * Add a new diagram (wrapper for upsert without ID)
+   */
+  public static async addDiagram(projectId: string, title: string, mermaid_code: string, type: string): Promise<Diagram> {
+    return this.upsertDiagram(projectId, title, mermaid_code, type);
+  }
+
+  /**
+   * Update an existing diagram (wrapper for upsert with ID)
+   */
   public static async updateDiagram(projectId: string, diagramId: number, title: string, mermaid_code: string, type: string): Promise<Diagram> {
-    try {
-      const response = await apiClient.put<Diagram>(getVersionedPath(`projects/${projectId}/diagrams/${diagramId}`), {
-        title,
-        mermaid_code,
-        type,
-      });
-      return this.mapToDiagram(response.data, projectId);
-    } catch (error) {
-      throw this.handleApiError(error as AxiosError);
-    }
+    return this.upsertDiagram(projectId, title, mermaid_code, type, diagramId);
   }
 
   public static async getDiagram(projectId: string, diagramId: number): Promise<Diagram> {

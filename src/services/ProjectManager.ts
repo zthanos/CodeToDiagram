@@ -204,15 +204,14 @@ export class ProjectManager {
 
   public async saveDiagram(projectId: string, diagramId: number | null, title: string, content: string, type: string = "flowchart"): Promise<Diagram> {
     try {
-      let savedDiagram: Diagram;
-
-      if (!diagramId) {
-        // Create new diagram
-        savedDiagram = await ProjectApiService.addDiagram(projectId, title, content, type);
-      } else {
-        // Update existing diagram
-        savedDiagram = await ProjectApiService.updateDiagram(projectId, diagramId, title, content, type);
-      }
+      // Use the unified upsert endpoint
+      const savedDiagram = await ProjectApiService.upsertDiagram(
+        projectId, 
+        title, 
+        content, 
+        type, 
+        diagramId || undefined
+      );
 
       // Update local project state if this is the current project
       if (this.currentProject && this.currentProject.id === projectId) {

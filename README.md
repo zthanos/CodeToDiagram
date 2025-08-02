@@ -101,8 +101,7 @@ All endpoints follow the versioned pattern:
 
 - **GET** `/api/v1/projects` - List all projects
 - **GET** `/api/v1/projects/{id}/outline` - Get project details
-- **POST** `/api/v1/projects/{id}/diagrams/add` - Add diagram to project
-- **PUT** `/api/v1/projects/{id}/diagrams/{diagramId}` - Update diagram
+- **POST** `/api/v1/projects/{id}/diagrams` - Create or update diagram (upsert)
 - **GET** `/api/v1/projects/{id}/diagrams/{diagramId}` - Get diagram
 - **GET** `/api/v1/projects/{id}/diagrams/list` - List project diagrams
 - **DELETE** `/api/v1/projects/{id}/diagrams/{diagramId}/delete` - Delete diagram

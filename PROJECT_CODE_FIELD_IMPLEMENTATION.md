@@ -87,8 +87,7 @@ All endpoints have been updated to use the versioned pattern:
 - `GET /api/v1/projects`
 - `POST /api/v1/projects`
 - `GET /api/v1/projects/{id}/outline`
-- `POST /api/v1/projects/{id}/diagrams/add`
-- `PUT /api/v1/projects/{id}/diagrams/{diagramId}`
+- `POST /api/v1/projects/{id}/diagrams` (upsert - create or update)
 - `GET /api/v1/projects/{id}/diagrams/{diagramId}`
 - `GET /api/v1/projects/{id}/diagrams/list`
 - `DELETE /api/v1/projects/{id}/diagrams/{diagramId}/delete`
