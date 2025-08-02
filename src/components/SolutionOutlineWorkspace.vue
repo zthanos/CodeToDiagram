@@ -108,7 +108,16 @@ List the technical specifications and constraints..."
                     {{ message.type === 'user' ? '👤' : '🤖' }}
                   </div>
                   <div class="message-content">
-                    <div class="message-text" v-html="formatMessage(message.content)"></div>
+                    <div class="message-text">
+                      <!-- Use VueMarkdownRender for AI messages -->
+                      <VueMarkdownRender 
+                        v-if="message.type === 'ai'" 
+                        :source="message.content"
+                        class="markdown-content"
+                      />
+                      <!-- Keep simple formatting for user messages -->
+                      <div v-else v-html="formatMessage(message.content)"></div>
+                    </div>
                     <div class="message-time">{{ formatTime(message.timestamp) }}</div>
                   </div>
                 </div>
@@ -117,7 +126,7 @@ List the technical specifications and constraints..."
                   <div class="message-avatar">🤖</div>
                   <div class="message-content">
                     <div class="message-text">
-                      <span v-if="streamingContent">{{ streamingContent }}</span>
+                      <span v-if="streamingContent" v-html="formatMessage(streamingContent)"></span>
                       <span v-else class="typing-indicator">
                         <span></span><span></span><span></span>
                       </span>
@@ -184,14 +193,16 @@ List the technical specifications and constraints..."
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { ProjectApiService } from '../services/ProjectApiService'
-// Import marked with fallback
-let marked: any
-try {
-  marked = require('marked').marked
-} catch (e) {
-  // Fallback if marked is not installed
-  marked = (text: string) => text.replace(/\n/g, '<br>')
-}
+import { marked } from 'marked'
+import VueMarkdownRender from 'vue-markdown-render'
+
+// Configure marked for better rendering
+marked.setOptions({
+  breaks: true,        // Convert \n to <br>
+  gfm: true,          // GitHub Flavored Markdown
+  sanitize: false,    // Allow HTML (we trust our content)
+  smartypants: false  // Don't convert quotes to smart quotes
+})
 
 interface ChatMessage {
   type: 'user' | 'ai'
@@ -405,6 +416,8 @@ async function streamLLMResponse(prompt: string) {
   isStreaming.value = true
   streamingContent.value = ''
   
+  console.log('Starting LLM streaming for prompt:', prompt.substring(0, 100) + '...')
+  
   try {
     // Create system prompt with context
     const systemPrompt = `You are an AI assistant helping with solution outline development. 
@@ -434,14 +447,19 @@ Please provide helpful, specific advice about the solution outline. Be concise a
     })
 
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('HTTP error:', response.status, errorText)
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+    
     const reader = response.body?.getReader()
     const decoder = new TextDecoder()
 
     if (reader) {
       let buffer = ''
+      let currentEvent = ''
       
       while (true) {
         const { done, value } = await reader.read()
@@ -453,57 +471,94 @@ Please provide helpful, specific advice about the solution outline. Be concise a
         buffer = lines.pop() || ''
         
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') {
+          const trimmedLine = line.trim()
+          
+          if (trimmedLine.startsWith('event: ')) {
+            currentEvent = trimmedLine.slice(7)
+          } else if (trimmedLine.startsWith('data: ')) {
+            const data = trimmedLine.slice(6)
+            
+            // Handle different event types
+            if (currentEvent === 'llm.chunk') {
+              try {
+                // Try to parse as JSON first
+                const parsed = JSON.parse(data)
+                if (parsed.content) {
+                  streamingContent.value += parsed.content
+                  await nextTick()
+                  scrollChatToBottom()
+                }
+              } catch (e) {
+                // If JSON parsing fails, treat as plain text chunk
+                console.log('Received plain text chunk:', data)
+                if (data && data.trim()) {
+                  streamingContent.value += data
+                  await nextTick()
+                  scrollChatToBottom()
+                }
+              }
+            } else if (currentEvent === 'llm.complete') {
+              console.log('LLM streaming complete')
               break
+            } else if (currentEvent === 'llm.start') {
+              console.log('LLM streaming started')
             }
             
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.content) {
-                streamingContent.value += parsed.content
-                await nextTick()
-                scrollChatToBottom()
-              }
-            } catch (e) {
-              // Ignore parsing errors for SSE format
-            }
+            // Reset event after processing
+            currentEvent = ''
+          } else if (trimmedLine === '') {
+            // Empty line indicates end of event
+            currentEvent = ''
           }
         }
       }
     }
 
     // Add the complete AI response to chat
-    if (streamingContent.value) {
+    if (streamingContent.value.trim()) {
       const aiMessage: ChatMessage = {
         type: 'ai',
-        content: streamingContent.value,
+        content: streamingContent.value.trim(),
         timestamp: new Date()
       }
       chatMessages.value.push(aiMessage)
+      console.log('Added complete AI message:', streamingContent.value.length, 'characters')
+    } else {
+      console.warn('No streaming content received')
     }
 
   } catch (error) {
     console.error('Streaming error:', error)
     
-    // Fallback to non-streaming API
-    try {
-      const response = await ProjectApiService.generateLLMResponse(prompt, systemPrompt)
+    // If we got some streaming content before the error, use it
+    if (streamingContent.value.trim()) {
       const aiMessage: ChatMessage = {
         type: 'ai',
-        content: response.content || response.response || 'Sorry, I encountered an error processing your request.',
+        content: streamingContent.value.trim(),
         timestamp: new Date()
       }
       chatMessages.value.push(aiMessage)
-    } catch (fallbackError) {
-      console.error('Fallback error:', fallbackError)
-      const errorMessage: ChatMessage = {
-        type: 'ai',
-        content: 'Sorry, I\'m currently unavailable. Please try again later.',
-        timestamp: new Date()
+      console.log('Used partial streaming content due to error')
+    } else {
+      // Fallback to non-streaming API
+      try {
+        console.log('Falling back to non-streaming API')
+        const response = await ProjectApiService.generateLLMResponse(prompt, systemPrompt)
+        const aiMessage: ChatMessage = {
+          type: 'ai',
+          content: response.content || response.response || 'Sorry, I encountered an error processing your request.',
+          timestamp: new Date()
+        }
+        chatMessages.value.push(aiMessage)
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError)
+        const errorMessage: ChatMessage = {
+          type: 'ai',
+          content: 'Sorry, I\'m currently unavailable. Please try again later.',
+          timestamp: new Date()
+        }
+        chatMessages.value.push(errorMessage)
       }
-      chatMessages.value.push(errorMessage)
     }
   } finally {
     isStreaming.value = false
@@ -545,12 +600,22 @@ function clearChat() {
 }
 
 function formatMessage(content: string): string {
-  // Simple markdown-like formatting for chat messages
-  return content
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br>')
+  // Full markdown rendering for chat messages
+  try {
+    console.log('Formatting content:', content.substring(0, 100) + '...')
+    const result = marked(content)
+    console.log('Marked result:', result.substring(0, 100) + '...')
+    return result
+  } catch (error) {
+    console.error('Error rendering markdown:', error)
+    console.log('Using fallback formatting for:', content.substring(0, 50))
+    // Fallback to simple formatting
+    return content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br>')
+  }
 }
 
 function formatTime(date: Date): string {
@@ -775,6 +840,8 @@ function formatTime(date: Date): string {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .chat-container {
@@ -782,13 +849,37 @@ function formatTime(date: Date): string {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 1rem;
   min-height: 0;
+  max-height: 100%;
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar styling */
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .empty-chat {
@@ -871,6 +962,183 @@ function formatTime(date: Date): string {
   border: 1px solid #e5e7eb;
 }
 
+/* Markdown styling for chat messages */
+.message-text h1,
+.message-text h2,
+.message-text h3,
+.message-text h4,
+.message-text h5,
+.message-text h6 {
+  margin: 0.5rem 0;
+  color: #1f2937;
+}
+
+.message-text h1 { font-size: 1.5rem; }
+.message-text h2 { font-size: 1.3rem; }
+.message-text h3 { font-size: 1.1rem; }
+.message-text h4,
+.message-text h5,
+.message-text h6 { font-size: 1rem; }
+
+.message-text p {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.message-text code {
+  background: #e5e7eb;
+  padding: 0.125rem 0.25rem;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.875rem;
+}
+
+.message-text pre {
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.message-text pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.message-text ul,
+.message-text ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.message-text li {
+  margin: 0.25rem 0;
+  line-height: 1.4;
+}
+
+.message-text blockquote {
+  border-left: 4px solid #d1d5db;
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.message-text strong {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.message-text em {
+  font-style: italic;
+}
+
+.message-text a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.message-text a:hover {
+  color: #1d4ed8;
+}
+
+.message-text table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+.message-text th,
+.message-text td {
+  border: 1px solid #d1d5db;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.message-text th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+/* Vue Markdown Render component styling */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin: 0.5rem 0;
+  color: #1f2937;
+}
+
+.markdown-content h1 { font-size: 1.5rem; }
+.markdown-content h2 { font-size: 1.3rem; }
+.markdown-content h3 { font-size: 1.1rem; }
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 { font-size: 1rem; }
+
+.markdown-content p {
+  margin: 0.5rem 0;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.markdown-content em {
+  font-style: italic;
+}
+
+.markdown-content code {
+  background: #e5e7eb;
+  padding: 0.125rem 0.25rem;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.875rem;
+}
+
+.markdown-content pre {
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.markdown-content li {
+  margin: 0.25rem 0;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #d1d5db;
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  color: #6b7280;
+  font-style: italic;
+}
+
 .typing-indicator {
   display: inline-flex;
   gap: 0.25rem;
@@ -907,6 +1175,7 @@ function formatTime(date: Date): string {
   border-top: 1px solid #e5e7eb;
   padding: 1rem;
   background: #f8fafc;
+  flex-shrink: 0;
 }
 
 .chat-input-wrapper {
