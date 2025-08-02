@@ -107,6 +107,8 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  code: string;
+  state?: 'active' | 'inactive' | 'archived';
   createdAt: Date;
   lastModified: Date;
   diagrams: Diagram[];

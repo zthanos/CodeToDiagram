@@ -83,7 +83,7 @@ export interface ProjectReference {
 // Workspace actions interface
 export interface WorkspaceActions {
   // Project actions
-  createProject(name: string): Promise<void>;
+  createProject(name: string, description?: string, code?: string): Promise<void>;
   loadProject(projectId: string): Promise<void>;
   saveCurrentProject(): Promise<void>;
   deleteProject(projectId: string): Promise<void>;

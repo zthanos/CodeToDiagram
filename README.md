@@ -34,6 +34,45 @@ npm run build
 npm run preview
 ```
 
+## API Documentation
+
+### Project Creation
+
+The application supports creating new projects through the API endpoint:
+
+**POST** `/api/v1/projects`
+
+**Request Body:**
+```json
+{
+  "name": "string",
+  "description": "string", 
+  "code": "string",
+  "state": "active",
+  "id": "string"
+}
+```
+
+**Required Fields:**
+- `name`: Project name (2-100 characters)
+- `code`: Unique project code (2-50 characters, e.g., "PROJ-001")
+- `id`: Unique project identifier
+
+**Optional Fields:**
+- `description`: Project description (max 500 characters)
+- `state`: Project state (defaults to "active")
+
+**Example:**
+```json
+{
+  "id": "project_1234567890_abc123",
+  "name": "My New Project",
+  "description": "A sample project for demonstration",
+  "code": "PROJ-001",
+  "state": "active"
+}
+```
+
 ## Docker Setup
 
 ### Build Docker Image

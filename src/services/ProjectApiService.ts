@@ -290,9 +290,15 @@ export class ProjectApiService {
     }
   }
 
-  public static async createProject(id: string, name: string, description?: string): Promise<Project> {
+  public static async createProject(id: string, name: string, description?: string, code?: string, state?: string): Promise<Project> {
     try {
-      const response = await apiClient.post<Project>('/projects/create', { id, name, description });
+      const response = await apiClient.post<Project>('/api/v1/projects', { 
+        id, 
+        name, 
+        description, 
+        code: code || id, // Use provided code or fallback to id
+        state: state || 'active' 
+      });
       return response.data;
     } catch (error) {
       throw this.handleApiError(error as AxiosError);

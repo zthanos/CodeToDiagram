@@ -40,7 +40,7 @@ export class ProjectManager {
   /**
    * Create a new project with default settings
    */
-  public async createProject(id: string, name: string, description?: string): Promise<Project> {
+  public async createProject(id: string, name: string, description?: string, code?: string): Promise<Project> {
     try {
       // Validate project name
       if (!name || name.trim().length === 0) {
@@ -94,6 +94,8 @@ export class ProjectManager {
         id: id,
         name: name.trim(),
         description: description?.trim(),
+        code: code || id, // Use provided code or fallback to id
+        state: 'active',
         createdAt: now,
         lastModified: now,
         diagrams: [],
@@ -188,7 +190,7 @@ export class ProjectManager {
       if (!this.currentProject) {
         throw new Error('Project ID cannot be empty');
       }
-      
+
       // Call backend to get project outline
       const diagram = await ProjectApiService.getDiagram(this.currentProject.id, diagramId);
 
@@ -203,7 +205,7 @@ export class ProjectManager {
   public async saveDiagram(projectId: string, diagramId: number | null, title: string, content: string, type: string = "flowchart"): Promise<Diagram> {
     try {
       let savedDiagram: Diagram;
-      
+
       if (!diagramId) {
         // Create new diagram
         savedDiagram = await ProjectApiService.addDiagram(projectId, title, content, type);
@@ -215,7 +217,7 @@ export class ProjectManager {
       // Update local project state if this is the current project
       if (this.currentProject && this.currentProject.id === projectId) {
         const existingDiagramIndex = this.currentProject.diagrams.findIndex(d => d.id === savedDiagram.id);
-        
+
         if (existingDiagramIndex >= 0) {
           // Update existing diagram in local state
           this.currentProject.diagrams[existingDiagramIndex] = savedDiagram;
@@ -223,7 +225,7 @@ export class ProjectManager {
           // Add new diagram to local state
           this.currentProject.diagrams.push(savedDiagram);
         }
-        
+
         // Update project's last modified timestamp
         this.currentProject.lastModified = new Date();
       }
@@ -252,7 +254,7 @@ export class ProjectManager {
       project.lastModified = new Date();
 
 
-      const savedProject = await ProjectApiService.createProject(project.id, project.name, project.description)
+      const savedProject = await ProjectApiService.createProject(project.id, project.name, project.description, project.code, project.state)
 
 
       this.projectList.push(project);

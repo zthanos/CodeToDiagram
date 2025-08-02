@@ -207,9 +207,10 @@ export class WorkspaceStateManager implements WorkspaceActions {
 
   // Project Actions Implementation
 
-  public async createProject(name: string): Promise<void> {
+  public async createProject(name: string, description?: string, code?: string): Promise<void> {
     try {
-      const project = await this.projectManager.createProject(name);
+      const projectId = this.generateProjectId();
+      const project = await this.projectManager.createProject(projectId, name, description, code);
       this.dispatch({
         type: 'CREATE_PROJECT',
         payload: { project }
@@ -920,11 +921,15 @@ export class WorkspaceStateManager implements WorkspaceActions {
   }
 
   private generateTabId(): string {
-    return `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `tab_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   private generateNotificationId(): string {
-    return `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `notification_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  private generateProjectId(): string {
+    return `project_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   // Cleanup method

@@ -113,6 +113,20 @@
             <div v-if="projectNameError" class="error-message">{{ projectNameError }}</div>
           </div>
           <div class="form-group">
+            <label for="project-code-input">Project Code</label>
+            <input 
+              id="project-code-input"
+              type="text" 
+              v-model="newProjectCode"
+              @keyup.enter="confirmCreateProject"
+              @keyup.escape="closeCreateProjectDialog"
+              placeholder="Enter project code (e.g., PROJ-001)"
+              maxlength="50"
+              :class="{ 'error': projectCodeError }"
+            >
+            <div v-if="projectCodeError" class="error-message">{{ projectCodeError }}</div>
+          </div>
+          <div class="form-group">
             <label for="project-description-input">Description (Optional)</label>
             <textarea 
               id="project-description-input"
@@ -128,7 +142,7 @@
           <button 
             class="btn btn-primary" 
             @click="confirmCreateProject"
-            :disabled="!isProjectNameValid || isCreatingProject"
+            :disabled="!isProjectNameValid || !isProjectCodeValid || isCreatingProject"
           >
             <span v-if="isCreatingProject" class="btn-spinner"></span>
             {{ isCreatingProject ? 'Creating...' : 'Create Project' }}
@@ -192,8 +206,10 @@ export default defineComponent({
       // Dialog state
       showCreateProjectDialog: false,
       newProjectName: '',
+      newProjectCode: '',
       newProjectDescription: '',
       projectNameError: '',
+      projectCodeError: '',
       isCreatingProject: false,
       
       // Dropdown state
@@ -230,6 +246,10 @@ export default defineComponent({
     
     isProjectNameValid() {
       return this.newProjectName.trim().length > 0 && !this.projectNameError
+    },
+    
+    isProjectCodeValid() {
+      return this.newProjectCode.trim().length > 0 && !this.projectCodeError
     }
   },
   watch: {
@@ -260,8 +280,10 @@ export default defineComponent({
     handleCreateProject() {
       this.showCreateProjectDialog = true
       this.newProjectName = ''
+      this.newProjectCode = ''
       this.newProjectDescription = ''
       this.projectNameError = ''
+      this.projectCodeError = ''
       
       // Focus the input after dialog opens
       this.$nextTick(() => {
@@ -274,13 +296,15 @@ export default defineComponent({
     closeCreateProjectDialog() {
       this.showCreateProjectDialog = false
       this.newProjectName = ''
+      this.newProjectCode = ''
       this.newProjectDescription = ''
       this.projectNameError = ''
+      this.projectCodeError = ''
       this.isCreatingProject = false
     },
     
     async confirmCreateProject() {
-      if (!this.isProjectNameValid || this.isCreatingProject) {
+      if (!this.isProjectNameValid || !this.isProjectCodeValid || this.isCreatingProject) {
         return
       }
       
@@ -289,6 +313,7 @@ export default defineComponent({
         
         const projectData = {
           name: this.newProjectName.trim(),
+          code: this.newProjectCode.trim(),
           description: this.newProjectDescription.trim() || undefined
         }
         

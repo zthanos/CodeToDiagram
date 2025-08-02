@@ -40,6 +40,20 @@
           </div>
           
           <div class="form-group">
+            <label for="project-code">Project Code *</label>
+            <input
+              id="project-code"
+              v-model="newProject.code"
+              type="text"
+              placeholder="Enter project code (e.g., PROJ-001)"
+              :class="{ 'error': errors.code }"
+              @input="clearError('code')"
+              required
+            />
+            <span v-if="errors.code" class="error-message">{{ errors.code }}</span>
+          </div>
+          
+          <div class="form-group">
             <label for="project-description">Description</label>
             <textarea
               id="project-description"
@@ -52,7 +66,7 @@
           <button 
             type="submit" 
             class="create-btn"
-            :disabled="isCreating || !newProject.name.trim()"
+            :disabled="isCreating || !newProject.name.trim() || !newProject.code.trim()"
           >
             {{ isCreating ? 'Creating...' : 'Create Project' }}
           </button>
@@ -110,6 +124,7 @@ export default {
       isCreating: false,
       newProject: {
         name: '',
+        code: '',
         description: ''
       },
       errors: {},
@@ -171,12 +186,14 @@ export default {
         const newProject = await projectManager.createProject(
           projectId,
           this.newProject.name.trim(),
-          this.newProject.description.trim() || undefined
+          this.newProject.description.trim() || undefined,
+          this.newProject.code.trim()
         )
         
         // Reset form
         this.newProject = {
           name: '',
+          code: '',
           description: ''
         }
         
@@ -213,6 +230,21 @@ export default {
       if (this.newProject.name.trim() && 
           this.availableProjects.some(p => p.name.toLowerCase() === this.newProject.name.trim().toLowerCase())) {
         errors.name = 'A project with this name already exists'
+      }
+      
+      // Validate project code
+      if (!this.newProject.code.trim()) {
+        errors.code = 'Project code is required'
+      } else if (this.newProject.code.trim().length < 2) {
+        errors.code = 'Project code must be at least 2 characters long'
+      } else if (this.newProject.code.trim().length > 50) {
+        errors.code = 'Project code must be less than 50 characters'
+      }
+      
+      // Check for duplicate codes
+      if (this.newProject.code.trim() && 
+          this.availableProjects.some(p => p.code && p.code.toLowerCase() === this.newProject.code.trim().toLowerCase())) {
+        errors.code = 'A project with this code already exists'
       }
       
       this.errors = errors
