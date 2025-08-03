@@ -109,12 +109,16 @@ List the technical specifications and constraints..."
                   </div>
                   <div class="message-content">
                     <div class="message-text">
+                      <MarkdownRenderer
+                       v-if="message.type === 'ai'" 
+                      :content="message.content"/>
+
                       <!-- Use VueMarkdownRender for AI messages -->
-                      <VueMarkdownRender 
+                      <!-- <VueMarkdownRender 
                         v-if="message.type === 'ai'" 
                         :source="message.content"
                         class="markdown-content"
-                      />
+                      /> -->
                       <!-- Keep simple formatting for user messages -->
                       <div v-else v-html="formatMessage(message.content)"></div>
                     </div>
@@ -178,7 +182,10 @@ List the technical specifications and constraints..."
           <!-- Preview Tab -->
           <div v-if="activeTab === 'preview'" class="preview-tab">
             <div class="preview-container">
-              <div v-if="editorContent" class="markdown-preview" v-html="renderedMarkdown"></div>
+              <!-- <div v-if="editorContent" class="markdown-preview" v-html="renderedMarkdown"></div> -->
+              <div v-if="editorContent" >
+                <MarkdownRenderer :content="editorContent" />
+              </div>
               <div v-else class="empty-preview">
                 <p>Start writing in the editor to see a preview here.</p>
               </div>
@@ -195,6 +202,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { ProjectApiService } from '../services/ProjectApiService'
 import { marked } from 'marked'
 import VueMarkdownRender from 'vue-markdown-render'
+import MarkdownRenderer from './MarkdownRenderer.vue'
 
 // Configure marked for better rendering
 marked.setOptions({
@@ -851,16 +859,17 @@ function formatTime(date: Date): string {
   min-height: 0;
   height: 100%;
   overflow: hidden;
+  justify-content: space-between;
 }
 
 .chat-messages {
-  flex: 1;
+  flex: 1 1 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 1rem;
   min-height: 0;
-  max-height: 100%;
   scroll-behavior: smooth;
+  height: 0;
 }
 
 /* Custom scrollbar styling */
@@ -1176,6 +1185,8 @@ function formatTime(date: Date): string {
   padding: 1rem;
   background: #f8fafc;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .chat-input-wrapper {
@@ -1191,7 +1202,7 @@ function formatTime(date: Date): string {
   padding: 0.75rem;
   font-size: 0.875rem;
   resize: none;
-  min-height: 40px;
+  min-height: 120px;
   max-height: 120px;
   outline: none;
   transition: border-color 0.2s;
