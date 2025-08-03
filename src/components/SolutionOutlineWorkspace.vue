@@ -4,12 +4,8 @@
     <div class="workspace-header">
       <h2 class="workspace-title">Solution Outline</h2>
       <div class="header-actions">
-        <button 
-          class="save-btn" 
-          @click="saveSolutionOutline"
-          :disabled="isSaving || !hasChanges"
-          :class="{ 'saving': isSaving }"
-        >
+        <button class="save-btn" @click="saveSolutionOutline" :disabled="isSaving || !hasChanges"
+          :class="{ 'saving': isSaving }">
           <span v-if="isSaving" class="spinner"></span>
           {{ isSaving ? 'Saving...' : 'Save' }}
         </button>
@@ -25,24 +21,38 @@
       <div class="editor-panel">
         <div class="editor-header">
           <h3>📝 Solution Outline</h3>
-          <div class="editor-status">
-            <span v-if="hasChanges" class="unsaved-indicator">●</span>
-            <span class="status-text">{{ solutionOutline?.status || 'draft' }}</span>
+          <div class="editor-controls">
+            <div class="editor-status">
+              <span v-if="hasChanges" class="unsaved-indicator">●</span>
+              <span class="status-text">{{ solutionOutline?.status || 'draft' }}</span>
+            </div>
+            <div class="view-toggle">
+              <button class="toggle-btn" @click="toggleViewMode">
+                {{ viewMode === 'edit' ? '👁️ Show' : '✏️ Edit' }}
+              </button>
+            </div>
           </div>
         </div>
-        
+
         <div class="editor-container">
           <div v-if="isLoading" class="loading-state">
             <div class="loading-spinner"></div>
             <p>Loading solution outline...</p>
           </div>
-          
-          <textarea
-            v-else
-            ref="markdownEditor"
-            v-model="editorContent"
-            class="markdown-editor"
-            placeholder="# Solution Outline
+
+          <!-- Preview Mode - Full Width MarkdownRenderer -->
+          <div v-else-if="viewMode === 'view'" class="preview-mode">
+            <div class="preview-content-full">
+              <MarkdownRenderer v-if="editorContent" :content="editorContent" />
+              <div v-else class="empty-preview">
+                <p>Start writing to see a preview here.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Edit Mode - Full Width Editor -->
+          <div v-else class="edit-mode">
+            <textarea ref="markdownEditor" v-model="editorContent" class="markdown-editor" placeholder="# Solution Outline
 
 ## Overview
 Describe the high-level solution approach...
@@ -54,29 +64,19 @@ Detail the system architecture and key components...
 Outline the development phases and milestones...
 
 ## Technical Requirements
-List the technical specifications and constraints..."
-            @input="handleEditorChange"
-            @keydown="handleKeyDown"
-          ></textarea>
+List the technical specifications and constraints..." @input="handleEditorChange" @keydown="handleKeyDown"></textarea>
+          </div>
         </div>
       </div>
 
       <!-- Right Panel - Tabbed Area (40%) -->
       <div class="right-panel">
         <div class="tab-header">
-          <button 
-            class="tab-btn"
-            :class="{ active: activeTab === 'chat' }"
-            @click="activeTab = 'chat'"
-          >
+          <button class="tab-btn" :class="{ active: activeTab === 'chat' }" @click="activeTab = 'chat'">
             💬 AI Assistant
           </button>
-          <button 
-            class="tab-btn"
-            :class="{ active: activeTab === 'preview' }"
-            @click="activeTab = 'preview'"
-          >
-            👁️ Preview
+          <button class="tab-btn" :class="{ active: activeTab === 'review' }" @click="activeTab = 'review'">
+            � Revieiw
           </button>
         </div>
 
@@ -97,21 +97,15 @@ List the technical specifications and constraints..."
                     </ul>
                   </div>
                 </div>
-                
-                <div 
-                  v-for="(message, index) in chatMessages" 
-                  :key="index" 
-                  class="message"
-                  :class="{ 'user-message': message.type === 'user', 'ai-message': message.type === 'ai' }"
-                >
+
+                <div v-for="(message, index) in chatMessages" :key="index" class="message"
+                  :class="{ 'user-message': message.type === 'user', 'ai-message': message.type === 'ai' }">
                   <div class="message-avatar">
                     {{ message.type === 'user' ? '👤' : '🤖' }}
                   </div>
                   <div class="message-content">
                     <div class="message-text">
-                      <MarkdownRenderer
-                       v-if="message.type === 'ai'" 
-                      :content="message.content"/>
+                      <MarkdownRenderer v-if="message.type === 'ai'" :content="message.content" />
 
                       <!-- Use VueMarkdownRender for AI messages -->
                       <!-- <VueMarkdownRender 
@@ -130,7 +124,7 @@ List the technical specifications and constraints..."
                   <div class="message-avatar">🤖</div>
                   <div class="message-content">
                     <div class="message-text">
-                      <span v-if="streamingContent" v-html="formatMessage(streamingContent)"></span>
+                      <MarkdownRenderer v-if="streamingContent" :content="streamingContent" />
                       <span v-else class="typing-indicator">
                         <span></span><span></span><span></span>
                       </span>
@@ -141,37 +135,19 @@ List the technical specifications and constraints..."
 
               <div class="chat-input-container">
                 <div class="chat-input-wrapper">
-                  <textarea
-                    ref="chatInput"
-                    v-model="currentMessage"
-                    class="chat-input"
-                    placeholder="Ask about your solution outline..."
-                    @keydown="handleChatKeyDown"
-                    @input="adjustTextareaHeight"
-                    rows="1"
-                  ></textarea>
-                  <button 
-                    class="send-btn"
-                    @click="sendMessage"
-                    :disabled="!currentMessage.trim() || isStreaming"
-                  >
+                  <textarea ref="chatInput" v-model="currentMessage" class="chat-input"
+                    placeholder="Ask about your solution outline..." @keydown="handleChatKeyDown"
+                    @input="adjustTextareaHeight" rows="1"></textarea>
+                  <button class="send-btn" @click="sendMessage" :disabled="!currentMessage.trim() || isStreaming">
                     <span v-if="isStreaming">⏹️</span>
                     <span v-else>📤</span>
                   </button>
                 </div>
                 <div class="chat-actions">
-                  <button 
-                    class="action-btn"
-                    @click="insertContextPrompt"
-                    :disabled="isStreaming"
-                  >
+                  <button class="action-btn" @click="insertContextPrompt" :disabled="isStreaming">
                     📋 Add Context
                   </button>
-                  <button 
-                    class="action-btn"
-                    @click="clearChat"
-                    :disabled="isStreaming"
-                  >
+                  <button class="action-btn" @click="clearChat" :disabled="isStreaming">
                     🗑️ Clear
                   </button>
                 </div>
@@ -179,15 +155,68 @@ List the technical specifications and constraints..."
             </div>
           </div>
 
-          <!-- Preview Tab -->
-          <div v-if="activeTab === 'preview'" class="preview-tab">
-            <div class="preview-container">
-              <!-- <div v-if="editorContent" class="markdown-preview" v-html="renderedMarkdown"></div> -->
-              <div v-if="editorContent" >
-                <MarkdownRenderer :content="editorContent" />
+          <!-- Review Tab -->
+          <div v-if="activeTab === 'review'" class="review-tab">
+            <div class="review-header">
+              <div class="review-status">
+                <h4>📋 Review Status</h4>
+                <span class="status-badge" :class="reviewStatus.toLowerCase()">
+                  {{ reviewStatus }}
+                </span>
               </div>
-              <div v-else class="empty-preview">
-                <p>Start writing in the editor to see a preview here.</p>
+              <button class="review-btn" @click="startReview" :disabled="!editorContent.trim()">
+                🔍 Start Review
+              </button>
+            </div>
+
+            <div class="review-content">
+              <div v-if="reviewComments.length === 0" class="empty-review">
+                <div class="empty-review-message">
+                  <h4>No reviews yet</h4>
+                  <p>Click "Start Review" to generate suggestions and comments for your solution outline.</p>
+                </div>
+              </div>
+
+              <div v-else class="comments-list">
+                <div v-for="(comment, index) in reviewComments" :key="index" class="comment-item"
+                  :class="comment.state.toLowerCase()">
+                  <div class="comment-header">
+                    <div class="comment-meta">
+                      <span class="comment-type">{{ comment.type }}</span>
+                      <span class="comment-line" v-if="comment.line">Line {{ comment.line }}</span>
+                    </div>
+                    <div class="comment-state">
+                      <select v-model="comment.state" @change="updateCommentState(comment)" class="state-select">
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Dismissed">Dismissed</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="comment-content">
+                    <h5 class="comment-title">{{ comment.title }}</h5>
+                    <p class="comment-description">{{ comment.description }}</p>
+
+                    <div v-if="comment.suggestion" class="comment-suggestion">
+                      <h6>💡 Suggestion:</h6>
+                      <div class="suggestion-content">
+                        <MarkdownRenderer :content="comment.suggestion" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="comment-actions">
+                    <button v-if="comment.state === 'Open'" class="action-btn implement-btn"
+                      @click="implementSuggestion(comment)">
+                      ✅ Implement
+                    </button>
+                    <button class="action-btn dismiss-btn" @click="dismissComment(comment)">
+                      ❌ Dismiss
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -242,7 +271,8 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 const hasChanges = ref(false)
 const lastSaved = ref<Date | null>(null)
-const activeTab = ref<'chat' | 'preview'>('chat')
+const activeTab = ref<'chat' | 'review'>('chat')
+const viewMode = ref<'edit' | 'view'>('edit')
 
 // Editor state
 const editorContent = ref('')
@@ -257,6 +287,22 @@ const streamingContent = ref('')
 const chatInput = ref<HTMLTextAreaElement>()
 const chatMessagesContainer = ref<HTMLDivElement>()
 const eventSource = ref<EventSource | null>(null)
+
+// Review state
+const reviewStatus = ref<'Draft' | 'In Review' | 'Approved' | 'Needs Changes'>('Draft')
+const reviewComments = ref<ReviewComment[]>([])
+
+// Review comment interface
+interface ReviewComment {
+  id: string
+  type: 'Suggestion' | 'Issue' | 'Question' | 'Improvement'
+  title: string
+  description: string
+  suggestion?: string
+  line?: number
+  state: 'Open' | 'In Progress' | 'Resolved' | 'Dismissed'
+  timestamp: Date
+}
 
 // Auto-save timer
 let autoSaveTimer: NodeJS.Timeout | null = null
@@ -275,12 +321,12 @@ const renderedMarkdown = computed(() => {
 // Lifecycle
 onMounted(async () => {
   console.log('SolutionOutlineWorkspace mounted, chatMessages:', chatMessages.value)
-  
+
   // Ensure chatMessages is properly initialized
   if (!Array.isArray(chatMessages.value)) {
     chatMessages.value = []
   }
-  
+
   await loadSolutionOutline()
   setupAutoSave()
 })
@@ -304,7 +350,7 @@ watch(editorContent, () => {
 // Methods
 async function loadSolutionOutline() {
   if (!props.project?.id) return
-  
+
   isLoading.value = true
   try {
     const outline = await ProjectApiService.getLatestSolutionOutline(props.project.id)
@@ -324,7 +370,7 @@ async function loadSolutionOutline() {
 
 async function saveSolutionOutline() {
   if (!props.project?.id || !hasChanges.value) return
-  
+
   isSaving.value = true
   try {
     const saved = await ProjectApiService.saveSolutionOutline(
@@ -354,21 +400,21 @@ function handleKeyDown(event: KeyboardEvent) {
     event.preventDefault()
     saveSolutionOutline()
   }
-  
+
   // Handle Tab for indentation
   if (event.key === 'Tab') {
     event.preventDefault()
     const textarea = event.target as HTMLTextAreaElement
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
-    
+
     // Insert tab character
     const value = textarea.value
     textarea.value = value.substring(0, start) + '  ' + value.substring(end)
-    
+
     // Move cursor
     textarea.selectionStart = textarea.selectionEnd = start + 2
-    
+
     // Trigger input event to update v-model
     textarea.dispatchEvent(new Event('input'))
   }
@@ -393,29 +439,29 @@ function resetAutoSaveTimer() {
 // Chat methods
 async function sendMessage() {
   if (!currentMessage.value.trim() || isStreaming.value) return
-  
+
   console.log('chatMessages before push:', chatMessages.value, 'type:', typeof chatMessages.value)
-  
+
   const userMessage: ChatMessage = {
     type: 'user',
     content: currentMessage.value.trim(),
     timestamp: new Date()
   }
-  
+
   // Ensure chatMessages is properly initialized
   if (!Array.isArray(chatMessages.value)) {
     console.error('chatMessages is not an array:', chatMessages.value)
     chatMessages.value = []
   }
-  
+
   chatMessages.value.push(userMessage)
   const prompt = currentMessage.value.trim()
   currentMessage.value = ''
-  
+
   // Scroll to bottom
   await nextTick()
   scrollChatToBottom()
-  
+
   // Start streaming response
   await streamLLMResponse(prompt)
 }
@@ -423,9 +469,9 @@ async function sendMessage() {
 async function streamLLMResponse(prompt: string) {
   isStreaming.value = true
   streamingContent.value = ''
-  
+
   console.log('Starting LLM streaming for prompt:', prompt.substring(0, 100) + '...')
-  
+
   try {
     // Create system prompt with context
     const systemPrompt = `You are an AI assistant helping with solution outline development. 
@@ -461,31 +507,31 @@ Please provide helpful, specific advice about the solution outline. Be concise a
     }
 
     console.log('Response headers:', Object.fromEntries(response.headers.entries()))
-    
+
     const reader = response.body?.getReader()
     const decoder = new TextDecoder()
 
     if (reader) {
       let buffer = ''
       let currentEvent = ''
-      
+
       while (true) {
         const { done, value } = await reader.read()
-        
+
         if (done) break
-        
+
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
-        
+
         for (const line of lines) {
           const trimmedLine = line.trim()
-          
+
           if (trimmedLine.startsWith('event: ')) {
             currentEvent = trimmedLine.slice(7)
           } else if (trimmedLine.startsWith('data: ')) {
             const data = trimmedLine.slice(6)
-            
+
             // Handle different event types
             if (currentEvent === 'llm.chunk') {
               try {
@@ -511,7 +557,7 @@ Please provide helpful, specific advice about the solution outline. Be concise a
             } else if (currentEvent === 'llm.start') {
               console.log('LLM streaming started')
             }
-            
+
             // Reset event after processing
             currentEvent = ''
           } else if (trimmedLine === '') {
@@ -537,7 +583,7 @@ Please provide helpful, specific advice about the solution outline. Be concise a
 
   } catch (error) {
     console.error('Streaming error:', error)
-    
+
     // If we got some streaming content before the error, use it
     if (streamingContent.value.trim()) {
       const aiMessage: ChatMessage = {
@@ -605,6 +651,67 @@ function insertContextPrompt() {
 
 function clearChat() {
   chatMessages.value = []
+}
+
+// View mode toggle function
+function toggleViewMode() {
+  viewMode.value = viewMode.value === 'edit' ? 'view' : 'edit'
+}
+
+// Review functions
+function startReview() {
+  reviewStatus.value = 'In Review'
+
+  // Generate sample review comments for now (UI only)
+  reviewComments.value = [
+    {
+      id: '1',
+      type: 'Suggestion',
+      title: 'Add more detail to the Overview section',
+      description: 'The overview section could benefit from more specific details about the problem being solved and the target audience.',
+      suggestion: '**Consider adding:**\n- Problem statement\n- Target users/stakeholders\n- Success criteria\n- Key constraints',
+      line: 3,
+      state: 'Open',
+      timestamp: new Date()
+    },
+    {
+      id: '2',
+      type: 'Issue',
+      title: 'Architecture section needs technical details',
+      description: 'The architecture section is missing key technical components and their relationships.',
+      suggestion: '**Include:**\n- System components diagram\n- Data flow\n- Technology stack\n- Integration points',
+      line: 8,
+      state: 'Open',
+      timestamp: new Date()
+    },
+    {
+      id: '3',
+      type: 'Improvement',
+      title: 'Implementation plan could be more specific',
+      description: 'Consider breaking down the implementation into more specific phases with timelines.',
+      suggestion: '**Suggested structure:**\n- Phase 1: Foundation (2 weeks)\n- Phase 2: Core features (4 weeks)\n- Phase 3: Integration (2 weeks)\n- Phase 4: Testing & deployment (1 week)',
+      line: 15,
+      state: 'Open',
+      timestamp: new Date()
+    }
+  ]
+}
+
+function updateCommentState(comment: ReviewComment) {
+  console.log(`Comment ${comment.id} state updated to: ${comment.state}`)
+  // In a real implementation, this would sync with the backend
+}
+
+function implementSuggestion(comment: ReviewComment) {
+  comment.state = 'In Progress'
+  console.log(`Implementing suggestion for comment: ${comment.id}`)
+  // In a real implementation, this would apply the suggestion to the editor
+  // For now, just mark as in progress
+}
+
+function dismissComment(comment: ReviewComment) {
+  comment.state = 'Dismissed'
+  console.log(`Dismissed comment: ${comment.id}`)
 }
 
 function formatMessage(content: string): string {
@@ -700,7 +807,9 @@ function formatTime(date: Date): string {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .last-saved {
@@ -782,6 +891,8 @@ function formatTime(date: Date): string {
 .markdown-editor {
   flex: 1;
   width: 100%;
+  height: 100%;
+  min-height: 400px;
   border: none;
   outline: none;
   padding: 1.5rem;
@@ -791,6 +902,7 @@ function formatTime(date: Date): string {
   resize: none;
   background: white;
   color: #374151;
+  box-sizing: border-box;
 }
 
 .markdown-editor::placeholder {
@@ -982,12 +1094,23 @@ function formatTime(date: Date): string {
   color: #1f2937;
 }
 
-.message-text h1 { font-size: 1.5rem; }
-.message-text h2 { font-size: 1.3rem; }
-.message-text h3 { font-size: 1.1rem; }
+.message-text h1 {
+  font-size: 1.5rem;
+}
+
+.message-text h2 {
+  font-size: 1.3rem;
+}
+
+.message-text h3 {
+  font-size: 1.1rem;
+}
+
 .message-text h4,
 .message-text h5,
-.message-text h6 { font-size: 1rem; }
+.message-text h6 {
+  font-size: 1rem;
+}
 
 .message-text p {
   margin: 0.5rem 0;
@@ -1087,12 +1210,23 @@ function formatTime(date: Date): string {
   color: #1f2937;
 }
 
-.markdown-content h1 { font-size: 1.5rem; }
-.markdown-content h2 { font-size: 1.3rem; }
-.markdown-content h3 { font-size: 1.1rem; }
+.markdown-content h1 {
+  font-size: 1.5rem;
+}
+
+.markdown-content h2 {
+  font-size: 1.3rem;
+}
+
+.markdown-content h3 {
+  font-size: 1.1rem;
+}
+
 .markdown-content h4,
 .markdown-content h5,
-.markdown-content h6 { font-size: 1rem; }
+.markdown-content h6 {
+  font-size: 1rem;
+}
 
 .markdown-content p {
   margin: 0.5rem 0;
@@ -1170,10 +1304,14 @@ function formatTime(date: Date): string {
 }
 
 @keyframes typing {
-  0%, 80%, 100% {
+
+  0%,
+  80%,
+  100% {
     transform: scale(0.8);
     opacity: 0.5;
   }
+
   40% {
     transform: scale(1);
     opacity: 1;
@@ -1355,18 +1493,18 @@ function formatTime(date: Date): string {
   .main-content {
     flex-direction: column;
   }
-  
+
   .editor-panel,
   .right-panel {
     width: 100%;
   }
-  
+
   .editor-panel {
     height: 60%;
     border-right: none;
     border-bottom: 1px solid #e5e7eb;
   }
-  
+
   .right-panel {
     height: 40%;
   }
@@ -1376,31 +1514,330 @@ function formatTime(date: Date): string {
   .workspace-header {
     padding: 0.75rem 1rem;
   }
-  
+
   .workspace-title {
     font-size: 1.25rem;
   }
-  
+
   .header-actions {
     gap: 0.5rem;
   }
-  
+
   .save-btn {
     padding: 0.5rem 0.75rem;
     font-size: 0.8rem;
   }
-  
+
   .markdown-editor {
     padding: 1rem;
     font-size: 13px;
   }
-  
+
   .chat-messages {
     padding: 0.75rem;
   }
-  
+
   .chat-input-container {
     padding: 0.75rem;
   }
+}
+
+
+/* Editor Controls and Toggle */
+.editor-controls {
+display: flex;
+align-items: center;
+gap: 1rem;
+}
+
+.view-toggle {
+display: flex;
+}
+
+.toggle-btn {
+padding: 0.5rem 1rem;
+border: 1px solid #d1d5db;
+border-radius: 6px;
+background: #f9fafb;
+color: #6b7280;
+cursor: pointer;
+font-size: 0.875rem;
+transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+background: #f3f4f6;
+border-color: #9ca3af;
+}
+
+/* Full Width Modes */
+.preview-mode,
+.edit-mode {
+flex: 1;
+display: flex;
+flex-direction: column;
+height: 100%;
+min-height: 0;
+}
+
+.preview-content-full {
+flex: 1;
+padding: 1.5rem;
+overflow-y: auto;
+background: white;
+border: 1px solid #e5e7eb;
+border-radius: 8px;
+padding-bottom: 6rem;
+}
+
+.edit-mode .markdown-editor {
+flex: 1;
+height: 100%;
+
+border: 1px solid #e5e7eb;
+border-radius: 8px;
+}
+
+/* Removed old split-view CSS - now using full-width modes */
+
+/* Review Tab Styles */
+.review-tab {
+flex: 1;
+display: flex;
+flex-direction: column;
+min-height: 0;
+}
+
+.review-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 1rem;
+border-bottom: 1px solid #e5e7eb;
+background: #f9fafb;
+}
+
+.review-status h4 {
+margin: 0 0 0.25rem 0;
+font-size: 1rem;
+color: #374151;
+}
+
+.status-badge {
+padding: 0.25rem 0.75rem;
+border-radius: 12px;
+font-size: 0.75rem;
+font-weight: 500;
+text-transform: uppercase;
+}
+
+.status-badge.draft {
+background: #f3f4f6;
+color: #6b7280;
+}
+
+.status-badge.in.review {
+background: #fef3c7;
+color: #d97706;
+}
+
+.status-badge.approved {
+background: #d1fae5;
+color: #059669;
+}
+
+.status-badge.needs.changes {
+background: #fee2e2;
+color: #dc2626;
+}
+
+.review-btn {
+padding: 0.5rem 1rem;
+border: 1px solid #d1d5db;
+border-radius: 6px;
+background: #3b82f6;
+color: white;
+cursor: pointer;
+font-size: 0.875rem;
+transition: all 0.2s;
+}
+
+.review-btn:hover:not(:disabled) {
+background: #2563eb;
+}
+
+.review-btn:disabled {
+background: #9ca3af;
+cursor: not-allowed;
+}
+
+.review-content {
+flex: 1;
+overflow-y: auto;
+padding: 1rem;
+}
+
+.empty-review {
+text-align: center;
+padding: 3rem 1rem;
+color: #6b7280;
+}
+
+.empty-review-message h4 {
+margin: 0 0 0.5rem 0;
+color: #374151;
+}
+
+.comments-list {
+display: flex;
+flex-direction: column;
+gap: 1rem;
+}
+
+.comment-item {
+border: 1px solid #e5e7eb;
+border-radius: 8px;
+background: white;
+overflow: hidden;
+}
+
+.comment-item.open {
+border-left: 4px solid #3b82f6;
+}
+
+.comment-item.in.progress {
+border-left: 4px solid #f59e0b;
+}
+
+.comment-item.resolved {
+border-left: 4px solid #10b981;
+opacity: 0.7;
+}
+
+.comment-item.dismissed {
+border-left: 4px solid #6b7280;
+opacity: 0.5;
+}
+
+.comment-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 0.75rem 1rem;
+background: #f9fafb;
+border-bottom: 1px solid #e5e7eb;
+}
+
+.comment-meta {
+display: flex;
+align-items: center;
+gap: 0.5rem;
+}
+
+.comment-type {
+padding: 0.125rem 0.5rem;
+border-radius: 4px;
+font-size: 0.75rem;
+font-weight: 500;
+background: #e5e7eb;
+color: #374151;
+}
+
+.comment-line {
+font-size: 0.75rem;
+color: #6b7280;
+}
+
+.state-select {
+padding: 0.25rem 0.5rem;
+border: 1px solid #d1d5db;
+border-radius: 4px;
+font-size: 0.75rem;
+background: white;
+}
+
+.comment-content {
+padding: 1rem;
+}
+
+.comment-title {
+margin: 0 0 0.5rem 0;
+font-size: 1rem;
+color: #374151;
+}
+
+.comment-description {
+margin: 0 0 1rem 0;
+color: #6b7280;
+line-height: 1.5;
+}
+
+.comment-suggestion {
+background: #f0f9ff;
+border: 1px solid #e0f2fe;
+border-radius: 6px;
+padding: 1rem;
+margin-top: 1rem;
+}
+
+.comment-suggestion h6 {
+margin: 0 0 0.5rem 0;
+font-size: 0.875rem;
+color: #0369a1;
+}
+
+.suggestion-content {
+font-size: 0.875rem;
+}
+
+.comment-actions {
+display: flex;
+gap: 0.5rem;
+padding: 0.75rem 1rem;
+background: #f9fafb;
+border-top: 1px solid #e5e7eb;
+}
+
+.action-btn {
+padding: 0.375rem 0.75rem;
+border: 1px solid #d1d5db;
+border-radius: 4px;
+font-size: 0.75rem;
+cursor: pointer;
+transition: all 0.2s;
+}
+
+.implement-btn {
+background: #10b981;
+color: white;
+border-color: #10b981;
+}
+
+.implement-btn:hover {
+background: #059669;
+}
+
+.dismiss-btn {
+background: #6b7280;
+color: white;
+border-color: #6b7280;
+}
+
+.dismiss-btn:hover {
+background: #4b5563;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+.preview-content-full {
+padding: 1rem;
+overflow: auto;
+padding-bottom: 6rem;
+}
+
+.toggle-btn {
+padding: 0.375rem 0.75rem;
+font-size: 0.8rem;
+}
 }
 </style>

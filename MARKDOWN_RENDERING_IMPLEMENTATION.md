@@ -1,69 +1,86 @@
 # Markdown Rendering for LLM Chat Messages
 
-## ✅ Implementation Complete
+## ✅ Implementation Complete - Now with Highlight.js!
 
-The LLM chat messages now support full markdown rendering with real-time streaming!
+The LLM chat messages now support full markdown rendering with **syntax highlighting** and real-time streaming using a dedicated `MarkdownRenderer.vue` component!
 
 ## Features Added
 
-### 🎨 **Full Markdown Support**
-- **Headers**: `# H1`, `## H2`, `### H3`, etc.
+### 🎨 **Full Markdown Support with Syntax Highlighting**
+- **Headers**: `# H1`, `## H2`, `### H3`, etc. with GitHub-style borders
 - **Text Formatting**: `**bold**`, `*italic*`, `~~strikethrough~~`
-- **Code**: `` `inline code` `` and ```code blocks```
-- **Lists**: Bulleted and numbered lists
-- **Links**: `[text](url)` format
-- **Blockquotes**: `> quoted text`
-- **Tables**: Full table support with borders
+- **Code**: `` `inline code` `` with gray background and ```code blocks``` with **syntax highlighting**
+- **Lists**: Bulleted and numbered lists with proper indentation
+- **Links**: `[text](url)` format with hover effects
+- **Blockquotes**: `> quoted text` with left border styling
+- **Tables**: Full table support with borders and header backgrounds
 - **Line breaks**: Proper paragraph spacing
 
-### ⚡ **Real-Time Streaming**
-- Markdown renders **as content streams in**
+### ⚡ **Real-Time Streaming with Syntax Highlighting**
+- Markdown renders **as content streams in** with live syntax highlighting
 - No waiting for complete message
 - Smooth visual updates during streaming
+- **120+ programming languages** automatically detected and highlighted
 
-### 🎯 **Enhanced Styling**
-- **Code blocks**: Dark theme with syntax highlighting ready
-- **Headers**: Proper hierarchy and spacing  
-- **Lists**: Clean indentation and spacing
-- **Tables**: Bordered layout with header styling
-- **Links**: Blue color with hover effects
-- **Blockquotes**: Left border with italic styling
+### 🎯 **Professional GitHub-Style Styling**
+- **Code blocks**: **GitHub Dark theme** with full syntax highlighting
+- **Headers**: Proper hierarchy with bottom borders (H1/H2)
+- **Lists**: Clean 2em indentation and spacing
+- **Tables**: Bordered layout with header backgrounds
+- **Links**: GitHub blue color with hover effects
+- **Typography**: System font stack with proper line heights
 
 ## Code Changes
 
-### 1. Updated `formatMessage()` Function
-```typescript
-function formatMessage(content: string): string {
-  try {
-    return marked(content)  // Full markdown rendering
-  } catch (error) {
-    console.error('Error rendering markdown:', error)
-    // Fallback to simple formatting
-    return content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code>$1</code>')
-      .replace(/\n/g, '<br>')
+### 1. Created Dedicated `MarkdownRenderer.vue` Component
+```vue
+<template>
+  <div class="markdown-content" v-html="renderedHtml" />
+</template>
+
+<script setup lang="ts">
+import { marked } from 'marked'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github-dark.css'
+
+// Configure marked with highlight.js
+const markedOptions = {
+  breaks: true,
+  gfm: true,
+  highlight: function(code: string, lang: string) {
+    if (lang && hljs.getLanguage(lang)) {
+      return hljs.highlight(code, { language: lang }).value
+    }
+    return hljs.highlightAuto(code).value
   }
 }
+</script>
 ```
 
-### 2. Updated Streaming Display
+### 2. Updated Message Display
 ```vue
-<div class="message-text">
-  <span v-if="streamingContent" v-html="formatMessage(streamingContent)"></span>
-  <!-- Real-time markdown rendering during streaming -->
-</div>
+<!-- Completed AI messages -->
+<MarkdownRenderer
+  v-if="message.type === 'ai'" 
+  :content="message.content"
+/>
+
+<!-- Streaming content -->
+<MarkdownRenderer 
+  v-if="streamingContent" 
+  :content="streamingContent" 
+/>
 ```
 
-### 3. Added Comprehensive CSS
-- Headers (H1-H6) with proper sizing
-- Code styling with monospace font
-- Dark code blocks for better readability
-- List styling with proper indentation
-- Table borders and header backgrounds
-- Link colors and hover effects
-- Blockquote styling with left border
+### 3. Added Professional GitHub-Style CSS
+- **Headers** with bottom borders (H1/H2) and proper hierarchy
+- **Code blocks** with GitHub Dark theme syntax highlighting
+- **Inline code** with light gray background
+- **Lists** with 2em indentation and clean spacing
+- **Tables** with borders and header backgrounds
+- **Links** with GitHub blue color and hover effects
+- **Blockquotes** with left border and italic styling
+- **Typography** using system font stack
 
 ## Usage Examples
 
