@@ -24,7 +24,11 @@
           <div class="editor-controls">
             <div class="editor-status">
               <span v-if="hasChanges" class="unsaved-indicator">●</span>
-              <span class="status-text">{{ solutionOutline?.status || 'draft' }}</span>
+              <select v-model="currentStatus" class="status-select" @change="handleStatusChange">
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select>
             </div>
             <div class="view-toggle">
               <button class="toggle-btn" @click="toggleViewMode">
@@ -273,6 +277,7 @@ const hasChanges = ref(false)
 const lastSaved = ref<Date | null>(null)
 const activeTab = ref<'chat' | 'review'>('chat')
 const viewMode = ref<'edit' | 'view'>('edit')
+const currentStatus = ref<'draft' | 'published' | 'archived'>('draft')
 
 // Editor state
 const editorContent = ref('')
@@ -347,6 +352,13 @@ watch(editorContent, () => {
   resetAutoSaveTimer()
 })
 
+// Watch for solution outline changes to sync status
+watch(solutionOutline, (newOutline) => {
+  if (newOutline?.status) {
+    currentStatus.value = newOutline.status as 'draft' | 'published' | 'archived'
+  }
+}, { immediate: true })
+
 // Methods
 async function loadSolutionOutline() {
   if (!props.project?.id) return
@@ -376,12 +388,19 @@ async function saveSolutionOutline() {
     const saved = await ProjectApiService.saveSolutionOutline(
       props.project.id,
       editorContent.value,
-      'draft'
+      currentStatus.value
     )
     solutionOutline.value = saved
     hasChanges.value = false
     lastSaved.value = new Date()
     emit('unsaved-changes', false)
+
+    console.log('Solution outline saved successfully:', {
+      id: saved.id,
+      version: saved.version,
+      status: saved.status,
+      project_id: saved.project_id
+    })
   } catch (error) {
     console.error('Failed to save solution outline:', error)
     // Could show a notification here
@@ -658,6 +677,12 @@ function toggleViewMode() {
   viewMode.value = viewMode.value === 'edit' ? 'view' : 'edit'
 }
 
+// Status change handler
+function handleStatusChange() {
+  hasChanges.value = true
+  emit('unsaved-changes', true)
+}
+
 // Review functions
 function startReview() {
   reviewStatus.value = 'In Review'
@@ -860,6 +885,27 @@ function formatTime(date: Date): string {
   color: #f59e0b;
   font-size: 1.2rem;
   line-height: 1;
+}
+
+.status-select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background: white;
+  color: #374151;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.status-select:hover {
+  border-color: #9ca3af;
+}
+
+.status-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
 }
 
 .editor-container {
@@ -1545,299 +1591,299 @@ function formatTime(date: Date): string {
 
 /* Editor Controls and Toggle */
 .editor-controls {
-display: flex;
-align-items: center;
-gap: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .view-toggle {
-display: flex;
+  display: flex;
 }
 
 .toggle-btn {
-padding: 0.5rem 1rem;
-border: 1px solid #d1d5db;
-border-radius: 6px;
-background: #f9fafb;
-color: #6b7280;
-cursor: pointer;
-font-size: 0.875rem;
-transition: all 0.2s;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #f9fafb;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
 }
 
 .toggle-btn:hover {
-background: #f3f4f6;
-border-color: #9ca3af;
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 
 /* Full Width Modes */
 .preview-mode,
 .edit-mode {
-flex: 1;
-display: flex;
-flex-direction: column;
-height: 100%;
-min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 .preview-content-full {
-flex: 1;
-padding: 1.5rem;
-overflow-y: auto;
-background: white;
-border: 1px solid #e5e7eb;
-border-radius: 8px;
-padding-bottom: 6rem;
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding-bottom: 6rem;
 }
 
 .edit-mode .markdown-editor {
-flex: 1;
-height: 100%;
+  flex: 1;
+  height: 100%;
 
-border: 1px solid #e5e7eb;
-border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
 }
 
 /* Removed old split-view CSS - now using full-width modes */
 
 /* Review Tab Styles */
 .review-tab {
-flex: 1;
-display: flex;
-flex-direction: column;
-min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .review-header {
-display: flex;
-justify-content: space-between;
-align-items: center;
-padding: 1rem;
-border-bottom: 1px solid #e5e7eb;
-background: #f9fafb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 .review-status h4 {
-margin: 0 0 0.25rem 0;
-font-size: 1rem;
-color: #374151;
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  color: #374151;
 }
 
 .status-badge {
-padding: 0.25rem 0.75rem;
-border-radius: 12px;
-font-size: 0.75rem;
-font-weight: 500;
-text-transform: uppercase;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
 }
 
 .status-badge.draft {
-background: #f3f4f6;
-color: #6b7280;
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 .status-badge.in.review {
-background: #fef3c7;
-color: #d97706;
+  background: #fef3c7;
+  color: #d97706;
 }
 
 .status-badge.approved {
-background: #d1fae5;
-color: #059669;
+  background: #d1fae5;
+  color: #059669;
 }
 
 .status-badge.needs.changes {
-background: #fee2e2;
-color: #dc2626;
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .review-btn {
-padding: 0.5rem 1rem;
-border: 1px solid #d1d5db;
-border-radius: 6px;
-background: #3b82f6;
-color: white;
-cursor: pointer;
-font-size: 0.875rem;
-transition: all 0.2s;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
 }
 
 .review-btn:hover:not(:disabled) {
-background: #2563eb;
+  background: #2563eb;
 }
 
 .review-btn:disabled {
-background: #9ca3af;
-cursor: not-allowed;
+  background: #9ca3af;
+  cursor: not-allowed;
 }
 
 .review-content {
-flex: 1;
-overflow-y: auto;
-padding: 1rem;
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
 }
 
 .empty-review {
-text-align: center;
-padding: 3rem 1rem;
-color: #6b7280;
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
 }
 
 .empty-review-message h4 {
-margin: 0 0 0.5rem 0;
-color: #374151;
+  margin: 0 0 0.5rem 0;
+  color: #374151;
 }
 
 .comments-list {
-display: flex;
-flex-direction: column;
-gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .comment-item {
-border: 1px solid #e5e7eb;
-border-radius: 8px;
-background: white;
-overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  overflow: hidden;
 }
 
 .comment-item.open {
-border-left: 4px solid #3b82f6;
+  border-left: 4px solid #3b82f6;
 }
 
 .comment-item.in.progress {
-border-left: 4px solid #f59e0b;
+  border-left: 4px solid #f59e0b;
 }
 
 .comment-item.resolved {
-border-left: 4px solid #10b981;
-opacity: 0.7;
+  border-left: 4px solid #10b981;
+  opacity: 0.7;
 }
 
 .comment-item.dismissed {
-border-left: 4px solid #6b7280;
-opacity: 0.5;
+  border-left: 4px solid #6b7280;
+  opacity: 0.5;
 }
 
 .comment-header {
-display: flex;
-justify-content: space-between;
-align-items: center;
-padding: 0.75rem 1rem;
-background: #f9fafb;
-border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .comment-meta {
-display: flex;
-align-items: center;
-gap: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .comment-type {
-padding: 0.125rem 0.5rem;
-border-radius: 4px;
-font-size: 0.75rem;
-font-weight: 500;
-background: #e5e7eb;
-color: #374151;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #e5e7eb;
+  color: #374151;
 }
 
 .comment-line {
-font-size: 0.75rem;
-color: #6b7280;
+  font-size: 0.75rem;
+  color: #6b7280;
 }
 
 .state-select {
-padding: 0.25rem 0.5rem;
-border: 1px solid #d1d5db;
-border-radius: 4px;
-font-size: 0.75rem;
-background: white;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  background: white;
 }
 
 .comment-content {
-padding: 1rem;
+  padding: 1rem;
 }
 
 .comment-title {
-margin: 0 0 0.5rem 0;
-font-size: 1rem;
-color: #374151;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #374151;
 }
 
 .comment-description {
-margin: 0 0 1rem 0;
-color: #6b7280;
-line-height: 1.5;
+  margin: 0 0 1rem 0;
+  color: #6b7280;
+  line-height: 1.5;
 }
 
 .comment-suggestion {
-background: #f0f9ff;
-border: 1px solid #e0f2fe;
-border-radius: 6px;
-padding: 1rem;
-margin-top: 1rem;
+  background: #f0f9ff;
+  border: 1px solid #e0f2fe;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
 }
 
 .comment-suggestion h6 {
-margin: 0 0 0.5rem 0;
-font-size: 0.875rem;
-color: #0369a1;
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  color: #0369a1;
 }
 
 .suggestion-content {
-font-size: 0.875rem;
+  font-size: 0.875rem;
 }
 
 .comment-actions {
-display: flex;
-gap: 0.5rem;
-padding: 0.75rem 1rem;
-background: #f9fafb;
-border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
 }
 
 .action-btn {
-padding: 0.375rem 0.75rem;
-border: 1px solid #d1d5db;
-border-radius: 4px;
-font-size: 0.75rem;
-cursor: pointer;
-transition: all 0.2s;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .implement-btn {
-background: #10b981;
-color: white;
-border-color: #10b981;
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
 }
 
 .implement-btn:hover {
-background: #059669;
+  background: #059669;
 }
 
 .dismiss-btn {
-background: #6b7280;
-color: white;
-border-color: #6b7280;
+  background: #6b7280;
+  color: white;
+  border-color: #6b7280;
 }
 
 .dismiss-btn:hover {
-background: #4b5563;
+  background: #4b5563;
 }
 
 /* Responsive adjustments */
 @media (max-width: 1024px) {
-.preview-content-full {
-padding: 1rem;
-overflow: auto;
-padding-bottom: 6rem;
-}
+  .preview-content-full {
+    padding: 1rem;
+    overflow: auto;
+    padding-bottom: 6rem;
+  }
 
-.toggle-btn {
-padding: 0.375rem 0.75rem;
-font-size: 0.8rem;
-}
+  .toggle-btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8rem;
+  }
 }
 </style>

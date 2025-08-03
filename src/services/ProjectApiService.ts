@@ -552,10 +552,12 @@ export class ProjectApiService {
 
   public static async saveSolutionOutline(projectId: string, content: string, status: string = 'draft'): Promise<any> {
     try {
-      const response = await apiClient.post(getVersionedPath(`projects/${projectId}/solution-outlines`), {
-        content,
-        status,
-        project_id: projectId
+      // Use upsert logic with query parameters as per API specification
+      const response = await apiClient.post(getVersionedPath(`projects/${projectId}/solution-outlines`), null, {
+        params: {
+          content,
+          status
+        }
       });
       return response.data;
     } catch (error) {
