@@ -21,53 +21,36 @@
         <p>Manage your projects with requirements, diagrams, teams, tasks, and notes all in one place.</p>
       </div>
 
+
+
+
       <!-- Project Creation Section -->
       <div class="create-project-section">
         <h2>Create New Project</h2>
         <form @submit.prevent="createProject" class="create-project-form">
           <div class="form-group">
             <label for="project-name">Project Name *</label>
-            <input
-              id="project-name"
-              v-model="newProject.name"
-              type="text"
-              placeholder="Enter project name"
-              :class="{ 'error': errors.name }"
-              @input="clearError('name')"
-              required
-            />
+            <input id="project-name" v-model="newProject.name" type="text" placeholder="Enter project name"
+              :class="{ 'error': errors.name }" @input="clearError('name')" required />
             <span v-if="errors.name" class="error-message">{{ errors.name }}</span>
           </div>
-          
+
           <div class="form-group">
             <label for="project-code">Project Code *</label>
-            <input
-              id="project-code"
-              v-model="newProject.code"
-              type="text"
-              placeholder="Enter project code (e.g., PROJ-001)"
-              :class="{ 'error': errors.code }"
-              @input="clearError('code')"
-              required
-            />
+            <input id="project-code" v-model="newProject.code" type="text"
+              placeholder="Enter project code (e.g., PROJ-001)" :class="{ 'error': errors.code }"
+              @input="clearError('code')" required />
             <span v-if="errors.code" class="error-message">{{ errors.code }}</span>
           </div>
-          
+
           <div class="form-group">
             <label for="project-description">Description</label>
-            <textarea
-              id="project-description"
-              v-model="newProject.description"
-              placeholder="Enter project description (optional)"
-              rows="3"
-            ></textarea>
+            <textarea id="project-description" v-model="newProject.description"
+              placeholder="Enter project description (optional)" rows="3"></textarea>
           </div>
-          
-          <button 
-            type="submit" 
-            class="create-btn"
-            :disabled="isCreating || !newProject.name.trim() || !newProject.code.trim()"
-          >
+
+          <button type="submit" class="create-btn"
+            :disabled="isCreating || !newProject.name.trim() || !newProject.code.trim()">
             {{ isCreating ? 'Creating...' : 'Create Project' }}
           </button>
         </form>
@@ -76,23 +59,48 @@
       <!-- Existing Projects Section -->
       <div class="projects-section">
         <h2>Your Projects</h2>
-        
+
         <div v-if="isLoading" class="loading-state">
           <div class="loading-spinner"></div>
           <p>Loading projects...</p>
         </div>
-        
+
         <div v-else-if="availableProjects.length === 0" class="empty-state">
           <p>No projects found. Create your first project above to get started!</p>
         </div>
-        
-        <div v-else class="projects-grid">
-          <div
-            v-for="project in availableProjects"
-            :key="project.id"
-            class="project-card"
-            @click="selectProject(project.id)"
+
+        <!-- Use carousel for many projects, grid for few -->
+        <div v-else-if="availableProjects.length > 3" class="projects-carousel">
+          <Carousel 
+            :items="availableProjects" 
+            :auto-play="true" 
+            :item-width="320" 
+            :infinite="false" 
+            :show-indicators="true"
+            @change="handleSlideChange"
           >
+            <template #default="{ item: project }">
+              <div class="project-card carousel-card" @click="selectProject(project.id)">
+                <div class="project-header">
+                  <h3 class="project-title">{{ project.name }}</h3>
+                  <span class="project-date">{{ formatDate(project.lastModified) }}</span>
+                </div>
+                <p class="project-description">
+                  {{ project.description || 'No description provided' }}
+                </p>
+                <div class="project-stats">
+                  <span class="stat">{{ project.diagrams?.length || 0 }} diagrams</span>
+                  <span class="stat">{{ project.requirements?.length || 0 }} requirements</span>
+                </div>
+              </div>
+            </template>
+          </Carousel>
+        </div>
+
+        <!-- Regular grid for few projects -->
+        <div v-else class="projects-grid">
+          <div v-for="project in availableProjects" :key="project.id" class="project-card"
+            @click="selectProject(project.id)">
             <div class="project-header">
               <h3 class="project-title">{{ project.name }}</h3>
               <span class="project-date">{{ formatDate(project.lastModified) }}</span>
@@ -107,6 +115,7 @@
           </div>
         </div>
       </div>
+      
     </div>
   </div>
 </template>
@@ -114,9 +123,13 @@
 <script>
 import { ProjectManager } from '@/services/ProjectManager'
 import { navigateToProject } from '@/router'
+import Carousel from './Carousel.vue'
 
 export default {
   name: 'LandingPage',
+  components: {
+    Carousel
+  },
   data() {
     return {
       availableProjects: [],
@@ -131,24 +144,24 @@ export default {
       routeError: null
     }
   },
-  
+
   computed: {
     hasRouteError() {
       return this.routeError !== null
     }
   },
-  
+
   async mounted() {
     await this.loadProjects()
     this.checkForRouteErrors()
   },
-  
+
   watch: {
     '$route'() {
       this.checkForRouteErrors()
     }
   },
-  
+
   methods: {
     async loadProjects() {
       this.isLoading = true
@@ -167,42 +180,42 @@ export default {
         this.isLoading = false
       }
     },
-    
+
     async createProject() {
       // Clear previous errors
       this.errors = {}
-      
+
       // Validate form
       if (!this.validateForm()) {
         return
       }
-      
+
       this.isCreating = true
-      
+
       try {
         const projectManager = ProjectManager.getInstance()
         const projectId = this.generateProjectId()
-        
+
         const newProject = await projectManager.createProject(
           projectId,
           this.newProject.name.trim(),
           this.newProject.description.trim() || undefined,
           this.newProject.code.trim()
         )
-        
+
         // Reset form
         this.newProject = {
           name: '',
           code: '',
           description: ''
         }
-        
+
         // Navigate to the new project workspace using helper function
         await navigateToProject(newProject.id)
-        
+
       } catch (error) {
         console.error('Failed to create project:', error)
-        
+
         // Handle specific error cases
         if (error.message.includes('already exists')) {
           this.errors.name = 'A project with this name already exists'
@@ -213,10 +226,10 @@ export default {
         this.isCreating = false
       }
     },
-    
+
     validateForm() {
       const errors = {}
-      
+
       // Validate project name
       if (!this.newProject.name.trim()) {
         errors.name = 'Project name is required'
@@ -225,13 +238,13 @@ export default {
       } else if (this.newProject.name.trim().length > 100) {
         errors.name = 'Project name must be less than 100 characters'
       }
-      
+
       // Check for duplicate names
-      if (this.newProject.name.trim() && 
-          this.availableProjects.some(p => p.name.toLowerCase() === this.newProject.name.trim().toLowerCase())) {
+      if (this.newProject.name.trim() &&
+        this.availableProjects.some(p => p.name.toLowerCase() === this.newProject.name.trim().toLowerCase())) {
         errors.name = 'A project with this name already exists'
       }
-      
+
       // Validate project code
       if (!this.newProject.code.trim()) {
         errors.code = 'Project code is required'
@@ -240,23 +253,23 @@ export default {
       } else if (this.newProject.code.trim().length > 50) {
         errors.code = 'Project code must be less than 50 characters'
       }
-      
+
       // Check for duplicate codes
-      if (this.newProject.code.trim() && 
-          this.availableProjects.some(p => p.code && p.code.toLowerCase() === this.newProject.code.trim().toLowerCase())) {
+      if (this.newProject.code.trim() &&
+        this.availableProjects.some(p => p.code && p.code.toLowerCase() === this.newProject.code.trim().toLowerCase())) {
         errors.code = 'A project with this code already exists'
       }
-      
+
       this.errors = errors
       return Object.keys(errors).length === 0
     },
-    
+
     clearError(field) {
       if (this.errors[field]) {
         delete this.errors[field]
       }
     },
-    
+
     async selectProject(projectId) {
       try {
         // Navigate to project workspace using helper function
@@ -265,19 +278,19 @@ export default {
         console.error('Failed to select project:', error)
       }
     },
-    
+
     generateProjectId() {
-      return `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      return `project_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     },
-    
+
     formatDate(date) {
       if (!date) return 'Unknown'
-      
+
       const dateObj = date instanceof Date ? date : new Date(date)
       const now = new Date()
       const diffTime = Math.abs(now - dateObj)
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-      
+
       if (diffDays === 1) {
         return 'Yesterday'
       } else if (diffDays < 7) {
@@ -286,7 +299,7 @@ export default {
         return dateObj.toLocaleDateString()
       }
     },
-    
+
     // Error handling methods
     checkForRouteErrors() {
       const query = this.$route.query
@@ -296,15 +309,15 @@ export default {
           message: query.message,
           projectId: query.projectId || null
         }
-        
+
         // Clear error from URL without triggering navigation
-        this.$router.replace({ 
+        this.$router.replace({
           name: 'Home',
           query: {}
         })
       }
     },
-    
+
     getErrorTitle(errorType) {
       const errorTitles = {
         'invalid-project-id': 'Invalid Project ID',
@@ -316,14 +329,14 @@ export default {
         'navigation-error': 'Navigation Error',
         'invalid-navigation': 'Invalid Navigation'
       }
-      
+
       return errorTitles[errorType] || 'Error'
     },
-    
+
     dismissError() {
       this.routeError = null
     },
-    
+
     async retryProject(projectId) {
       this.dismissError()
       try {
@@ -337,10 +350,15 @@ export default {
         }
       }
     },
-    
+
     async retryLoadProjects() {
       this.dismissError()
       await this.loadProjects()
+    },
+
+    handleSlideChange(index) {
+      // Optional: Handle slide change events
+      console.log('Carousel slide changed to:', index)
     }
   }
 }
@@ -531,8 +549,17 @@ export default {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.projects-carousel {
+  margin: 0 -1rem;
 }
 
 .projects-grid {
@@ -548,6 +575,14 @@ export default {
   cursor: pointer;
   transition: all 0.2s;
   background: white;
+}
+
+.project-card.carousel-card {
+  margin: 0 10px;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .project-card:hover {
@@ -597,15 +632,15 @@ export default {
   .landing-container {
     padding: 0 1rem;
   }
-  
+
   .landing-header h1 {
     font-size: 2rem;
   }
-  
+
   .projects-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .project-header {
     flex-direction: column;
     gap: 0.5rem;

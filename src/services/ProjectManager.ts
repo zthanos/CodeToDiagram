@@ -100,6 +100,8 @@ export class ProjectManager {
         lastModified: now,
         diagrams: [],
         requirements: [],
+        solution_outline: null,
+        requirements_outline:null,
         teams: [],
         tasks: [],
         settings: defaultSettings,
@@ -434,7 +436,7 @@ export class ProjectManager {
       (typeof project.id === 'number' || typeof project.id === 'string') &&
       typeof project.name === 'string' &&
       ('description' in project) &&
-      Array.isArray(project.requirements) &&
+//      Array.isArray(project.requirements) &&
       Array.isArray(project.diagrams) &&
       Array.isArray(project.teams) &&
       Array.isArray(project.tasks);

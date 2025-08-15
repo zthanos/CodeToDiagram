@@ -12,6 +12,9 @@ export * from './workspace';
 // File system integration types
 export * from './filesystem';
 
+// Requirements workspace types
+export * from './requirements';
+
 // Re-export commonly used types for convenience
 export type {
   Project,
@@ -30,3 +33,12 @@ export type {
   StorageProvider,
   FileOperationResult
 } from './filesystem';
+
+export type {
+  RequirementsDocument,
+  RequirementItem,
+  SystemInfo,
+  TeamInfo,
+  RequirementsWorkspaceState,
+  RequirementsErrorType
+} from './requirements';

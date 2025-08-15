@@ -13,7 +13,7 @@ const routes = [
     }
   },
   {
-    path: '/project/:id',
+    path: '/project/:id/:section?',
     name: 'ProjectWorkspace',
     component: ProjectWorkspace,
     props: true,
@@ -141,7 +141,7 @@ router.onError((error) => {
 })
 
 // Helper function to navigate to project workspace
-export const navigateToProject = (projectId) => {
+export const navigateToProject = (projectId, section = null) => {
   if (!projectId) {
     console.error('Cannot navigate to project: no project ID provided')
     return router.push({
@@ -150,10 +150,20 @@ export const navigateToProject = (projectId) => {
     })
   }
   
+  const params = { id: projectId }
+  if (section) {
+    params.section = section
+  }
+  
   return router.push({
     name: 'ProjectWorkspace',
-    params: { id: projectId }
+    params
   })
+}
+
+// Helper function to navigate to requirements workspace specifically
+export const navigateToRequirements = (projectId) => {
+  return navigateToProject(projectId, 'requirements')
 }
 
 // Helper function to navigate to home with optional error

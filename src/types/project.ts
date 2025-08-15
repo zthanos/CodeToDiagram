@@ -113,6 +113,8 @@ export interface Project {
   lastModified: Date;
   diagrams: Diagram[];
   requirements: Requirement[];
+  solution_outline?: SolutionOutline | null;
+  requirements_outline?: RequirementsOutline | null;
   teams: Team[];
   tasks: Task[];
   
@@ -123,6 +125,19 @@ export interface Project {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface SolutionOutline{
+  content: string;
+  status: string;
+  latest_version: number;
+}
+
+export interface RequirementsOutline{
+  content: string;
+  status: string;
+  latest_version: number;
+}
+
 
 // Requirement interface
 export interface Requirement {

@@ -14,6 +14,15 @@
           <li class="nav-item">
             <button 
               class="nav-button" 
+              :class="{ active: activeSection === 'project-overview' }"
+              @click="setActiveSection('project-overview')"
+            >
+              🎯 Project Overview
+            </button>
+          </li>          
+          <li class="nav-item">
+            <button 
+              class="nav-button" 
               :class="{ active: activeSection === 'solution-outline' }"
               @click="setActiveSection('solution-outline')"
             >
@@ -85,6 +94,16 @@
       </div>
 
       <div v-else class="workspace-content">
+
+        <ProjectOverviewWorkspace
+          v-if="activeSection === 'project-overview'"
+          :project="currentProject"
+          :theme="'dark'"
+          @create-diagram="handleCreateDiagram"
+          @open-diagram="handleOpenDiagram"
+          @switch-section="setActiveSection"
+        />
+
         <!-- Solution Outline Section -->
         <SolutionOutlineWorkspace 
           v-if="activeSection === 'solution-outline'"
@@ -137,6 +156,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SolutionOutlineWorkspace from './SolutionOutlineWorkspace.vue'
+import ProjectOverviewWorkspace from './ProjectOverviewWorkspace.vue'
 import DiagramsWorkspace from './DiagramsWorkspace.vue'
 import RequirementsWorkspace from './RequirementsWorkspace.vue'
 import TeamsWorkspace from './TeamsWorkspace.vue'
@@ -148,6 +168,7 @@ import { useLoading } from '../composables/useLoading'
 import { useComponentErrorHandling } from '../composables/useErrorHandling'
 import { navigateToHome } from '../router'
 import { useDialog } from '../composables/useDialog'
+import { useAutoSave } from '@/composables/useAutoSave'
 
 const props = defineProps<{ 
   theme: string
@@ -179,13 +200,23 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  cleanupUnsavedChangesWarning()
+  cleanupWorkspace()
 })
 
 // Watch for route changes to load different projects
 watch(() => route?.params?.id, (newId) => {
   if (newId && typeof newId === 'string') {
     loadProject(newId)
+  }
+}, { immediate: true })
+
+// Watch for section changes in URL
+watch(() => route?.params?.section, (newSection) => {
+  if (newSection && typeof newSection === 'string') {
+    const validSections = ['project-overview', 'solution-outline', 'requirements', 'diagrams', 'teams', 'tasks', 'notes']
+    if (validSections.includes(newSection)) {
+      activeSection.value = newSection
+    }
   }
 }, { immediate: true })
 
@@ -207,10 +238,18 @@ async function loadProject(projectId: string) {
         const project = await manager.loadProject(projectId)
         currentProject.value = project
         
-        // Restore last active section if available
-        const savedSection = localStorage.getItem(`project-${projectId}-active-section`)
-        if (savedSection && ['requirements', 'diagrams', 'teams', 'tasks', 'notes'].includes(savedSection)) {
-          activeSection.value = savedSection
+        // Set active section from URL or restore from localStorage
+        const urlSection = route?.params?.section as string
+        const validSections = ['project-overview', 'solution-outline', 'requirements', 'diagrams', 'teams', 'tasks', 'notes']
+        
+        if (urlSection && validSections.includes(urlSection)) {
+          activeSection.value = urlSection
+        } else {
+          // Restore last active section if available
+          const savedSection = localStorage.getItem(`project-${projectId}-active-section`)
+          if (savedSection && validSections.includes(savedSection)) {
+            activeSection.value = savedSection
+          }
         }
         
         NotificationService.success('Project Loaded', `Successfully loaded project "${project.name}"`)
@@ -231,6 +270,19 @@ async function loadProject(projectId: string) {
 
 function setActiveSection(section: string) {
   activeSection.value = section
+  
+  // Update URL to reflect current section
+  const currentProjectId = route?.params?.id as string
+  if (currentProjectId && route?.params?.section !== section) {
+    router.replace({
+      name: 'ProjectWorkspace',
+      params: { 
+        id: currentProjectId,
+        section: section
+      }
+    })
+  }
+  
   // Save section state for persistence
   if (currentProject.value) {
     localStorage.setItem(`project-${currentProject.value.id}-active-section`, section)
@@ -295,6 +347,26 @@ function setupUnsavedChangesWarning() {
   
   // Store the remove function for cleanup
   ;(window as any).__routerGuardRemover = removeGuard
+}
+
+function cleanupWorkspace() {
+  // Clean up unsaved changes warning
+  cleanupUnsavedChangesWarning()
+  
+  // Clear any pending auto-save timers
+  if (currentProject.value) {
+    const projectId = currentProject.value.id
+    // Clear any workspace-specific timers or intervals
+    clearTimeout((window as any)[`autoSave-${projectId}`])
+    
+    // Clear any cached data that shouldn't persist
+    // Note: We keep localStorage data for section state persistence
+  }
+  
+  // Reset component state
+  currentProject.value = null
+  hasUnsavedChanges.value = false
+  loadError.value = null
 }
 
 function cleanupUnsavedChangesWarning() {
