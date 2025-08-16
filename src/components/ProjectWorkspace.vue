@@ -17,7 +17,7 @@
               :class="{ active: activeSection === 'project-overview' }"
               @click="setActiveSection('project-overview')"
             >
-              🎯 Project Overview
+              📊 Project Overview
             </button>
           </li>          
           <li class="nav-item">
@@ -153,6 +153,7 @@ import { useComponentErrorHandling } from '../composables/useErrorHandling'
 import { navigateToHome } from '../router'
 import { useDialog } from '../composables/useDialog'
 import { useAutoSave } from '@/composables/useAutoSave'
+import { useWorkspaceDataSharing } from '../composables/useWorkspaceDataSharing'
 
 const props = defineProps<{ 
   theme: string
@@ -176,6 +177,7 @@ const loadError = ref<string | null>(null)
 const loading = useLoading('project-workspace')
 const errorHandler = useComponentErrorHandling('ProjectWorkspace')
 const dialog = useDialog()
+const dataSharing = useWorkspaceDataSharing()
 
 // Lifecycle
 onMounted(() => {
@@ -283,6 +285,9 @@ function setActiveSection(section: string) {
 function handleProjectUpdated(updatedProject: Project) {
   currentProject.value = updatedProject
   hasUnsavedChanges.value = false // Reset unsaved changes when project is updated
+  
+  // Update shared data for consistency across workspaces
+  dataSharing.updateProject(updatedProject)
 }
 
 // Solution Outline event handlers

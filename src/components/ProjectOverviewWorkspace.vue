@@ -1,61 +1,58 @@
 <template>
-  <div class="project-overview-workspace">
-    <!-- Header -->
-    <div class="workspace-header">
-      <h2 class="workspace-title">Project Overview</h2>
-      <div class="header-actions">
-        <button 
-          class="refresh-btn" 
-          @click="refreshAllData" 
-          :disabled="isLoading"
-          :class="{ 'loading': isLoading }"
-        >
-          <span v-if="isLoading" class="spinner"></span>
-          {{ isLoading ? 'Refreshing...' : '🔄 Refresh' }}
-        </button>
-        
-        <!-- Last updated indicator -->
-        <div v-if="lastUpdated" class="last-updated">
-          Last updated: {{ formatTime(lastUpdated) }}
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content">
-      <!-- Loading State -->
-      <div v-if="isLoading && !hasAnyData" class="loading-state">
-        <div class="loading-spinner"></div>
-        <div class="loading-content">
-          <p class="loading-title">Loading Project Overview</p>
-          <p class="loading-subtitle">Fetching project data from all sources...</p>
-        </div>
-      </div>
-
-      <!-- Error State -->
-      <div v-else-if="loadingError && !hasAnyData" class="error-state">
-        <div class="error-icon">⚠️</div>
-        <div class="error-content">
-          <h3 class="error-title">Failed to Load Project Overview</h3>
-          <p class="error-message">{{ loadingError }}</p>
-          <div class="error-actions">
-            <button 
-              class="retry-btn" 
-              @click="retryLoadData"
-              :disabled="isLoading"
-            >
-              <span v-if="isLoading" class="spinner"></span>
-              {{ isLoading ? 'Retrying...' : 'Try Again' }}
-            </button>
+  <WorkspaceErrorBoundary
+    workspace-name="Project Overview"
+    component-name="ProjectOverviewWorkspace"
+    :show-recovery-options="true"
+    :max-retries="3"
+    @retry="handleErrorRetry"
+    @reset="handleWorkspaceReset"
+    @clear-data="handleClearData"
+  >
+    <div class="project-overview-workspace">
+      <!-- Header -->
+      <div class="workspace-header">
+        <h2 class="workspace-title">Project Overview</h2>
+        <div class="header-actions">
+          <button 
+            class="refresh-btn" 
+            @click="refreshAllData" 
+            :disabled="errorHandling.isLoading.value"
+            :class="{ 'loading': errorHandling.isLoading.value }"
+          >
+            <span v-if="errorHandling.isLoading.value" class="spinner"></span>
+            {{ errorHandling.isLoading.value ? 'Refreshing...' : '🔄 Refresh' }}
+          </button>
+          
+          <!-- Last updated indicator -->
+          <div v-if="lastUpdated" class="last-updated">
+            Last updated: {{ formatTime(lastUpdated) }}
           </div>
-          <p class="retry-info" v-if="retryCount > 0">
-            Retry attempt {{ retryCount }}/{{ maxRetries }}
-          </p>
         </div>
       </div>
 
-      <!-- Dashboard Content -->
-      <div v-else class="dashboard-content">
+      <!-- Loading Overlay -->
+      <WorkspaceLoadingOverlay
+        :show="errorHandling.isLoading.value && !hasAnyData"
+        type="spinner"
+        size="large"
+        message="Loading Project Overview"
+        subtitle="Fetching project data from all sources..."
+        :details="errorHandling.loadingState.value.loadingDetails"
+        :show-details="true"
+        :timeout="30000"
+        @timeout="handleLoadingTimeout"
+      />
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Skeleton Loading State -->
+        <WorkspaceSkeletonLoader
+          v-if="errorHandling.isLoading.value && !hasAnyData"
+          type="project-overview"
+        />
+
+        <!-- Dashboard Content -->
+        <div v-else class="dashboard-content">
         <!-- Status Cards Grid -->
         <div class="status-cards-grid">
           <!-- Solution Outline Card -->
@@ -362,21 +359,26 @@
       </div>
     </div>
 
-    <!-- Error Notification -->
-    <div v-if="notification" class="notification" :class="notification.type">
-      <div class="notification-content">
-        <span class="notification-icon">{{ notification.type === 'success' ? '✅' : '❌' }}</span>
-        <span class="notification-message">{{ notification.message }}</span>
+      <!-- Error Notification -->
+      <div v-if="notification" class="notification" :class="notification.type">
+        <div class="notification-content">
+          <span class="notification-icon">{{ notification.type === 'success' ? '✅' : '❌' }}</span>
+          <span class="notification-message">{{ notification.message }}</span>
+        </div>
+        <button class="notification-close" @click="closeNotification">×</button>
       </div>
-      <button class="notification-close" @click="closeNotification">×</button>
     </div>
-  </div>
+  </WorkspaceErrorBoundary>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ProjectOutlineApiService } from '../services/ProjectOutlineApiService'
 import { RequirementsApiService } from '../services/RequirementsApiService'
+import WorkspaceErrorBoundary from './WorkspaceErrorBoundary.vue'
+import WorkspaceLoadingOverlay from './WorkspaceLoadingOverlay.vue'
+import WorkspaceSkeletonLoader from './WorkspaceSkeletonLoader.vue'
+import useWorkspaceErrorHandling from '../composables/useWorkspaceErrorHandling'
 import type { Project } from '../types/project'
 import type { ProjectOutline } from '../types/projectOutline'
 import type { RequirementsDocument, RequirementItem, SystemInfo, TeamInfo } from '../types/requirements'
@@ -390,12 +392,26 @@ interface Props {
 // Props
 const props = defineProps<Props>()
 
+// Error handling and loading
+const errorHandling = useWorkspaceErrorHandling({
+  workspaceName: 'Project Overview',
+  componentName: 'ProjectOverviewWorkspace',
+  maxRetries: 3,
+  showNotifications: true,
+  autoRetry: false,
+  onError: (error, context) => {
+    console.error('Project Overview error:', error, context)
+  },
+  onRetry: (attempt) => {
+    console.log(`Project Overview retry attempt ${attempt}`)
+  },
+  onRecover: async () => {
+    await loadAllData()
+  }
+})
+
 // Core state
-const isLoading = ref(false)
 const lastUpdated = ref<Date | null>(null)
-const loadingError = ref<string | null>(null)
-const retryCount = ref(0)
-const maxRetries = 3
 
 // Project outline state
 const projectOutline = ref<ProjectOutline | null>(null)
@@ -581,55 +597,58 @@ async function loadAllData() {
     return
   }
 
-  isLoading.value = true
-  loadingError.value = null
+  await errorHandling.withLoadingAndErrorHandling(
+    async () => {
+      // Add loading details for each data source
+      errorHandling.addLoadingDetail('Loading project outline', 'loading')
+      errorHandling.addLoadingDetail('Loading requirements summary', 'pending')
+      errorHandling.addLoadingDetail('Loading teams data', 'pending')
+      errorHandling.addLoadingDetail('Loading systems data', 'pending')
+      errorHandling.addLoadingDetail('Loading ADRs', 'pending')
+      errorHandling.addLoadingDetail('Loading notes', 'pending')
 
-  try {
-    // Load all data sources in parallel
-    await Promise.allSettled([
-      loadProjectOutline(),
-      loadRequirementsSummary(),
-      loadTeamsData(),
-      loadSystemsData(),
-      loadADRsData(),
-      loadNotesData()
-    ])
+      // Load all data sources in parallel with progress tracking
+      const results = await Promise.allSettled([
+        loadProjectOutline().then(() => errorHandling.updateLoadingDetail(0, 'success')),
+        loadRequirementsSummary().then(() => errorHandling.updateLoadingDetail(1, 'success')),
+        loadTeamsData().then(() => errorHandling.updateLoadingDetail(2, 'success')),
+        loadSystemsData().then(() => errorHandling.updateLoadingDetail(3, 'success')),
+        loadADRsData().then(() => errorHandling.updateLoadingDetail(4, 'success')),
+        loadNotesData().then(() => errorHandling.updateLoadingDetail(5, 'success'))
+      ])
 
-    lastUpdated.value = new Date()
-    retryCount.value = 0
-    
-    console.log('Project overview data loaded successfully')
-    
-  } catch (error: any) {
-    console.error('Failed to load project overview data:', error)
-    loadingError.value = error.message || 'Failed to load project overview data'
-    showNotification('error', 'Failed to load some project data. Please try refreshing.')
-  } finally {
-    isLoading.value = false
-  }
+      // Check for any failures and mark them as errors
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          errorHandling.updateLoadingDetail(index, 'error')
+        }
+      })
+
+      lastUpdated.value = new Date()
+      console.log('Project overview data loaded successfully')
+    },
+    'Loading Project Overview',
+    'load_all_data'
+  )
 }
 
 async function loadProjectOutline() {
   if (!props.project?.id) return
 
-  projectOutlineLoading.value = true
-  projectOutlineError.value = null
+  await errorHandling.withErrorHandling(
+    async () => {
+      projectOutlineLoading.value = true
+      projectOutlineError.value = null
 
-  try {
-    const outline = await ProjectOutlineApiService.getProjectOutline(props.project.id)
-    projectOutline.value = outline
-    console.log('Project outline loaded:', outline)
-  } catch (error: any) {
-    console.error('Failed to load project outline:', error)
-    projectOutlineError.value = error.message || 'Failed to load solution outline'
-    
-    // Don't show notification for individual section errors during initial load
-    if (!isLoading.value) {
-      showNotification('error', 'Failed to load solution outline data')
-    }
-  } finally {
+      const outline = await ProjectOutlineApiService.getProjectOutline(props.project.id)
+      projectOutline.value = outline
+      console.log('Project outline loaded:', outline)
+    },
+    'load_project_outline',
+    { section: 'project_outline' }
+  ).finally(() => {
     projectOutlineLoading.value = false
-  }
+  })
 }
 
 async function loadRequirementsSummary() {
@@ -923,6 +942,45 @@ function formatTime(date: Date): string {
 
 function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
+}
+
+// Error handling methods
+function handleErrorRetry() {
+  errorHandling.clearError()
+  loadAllData()
+}
+
+function handleWorkspaceReset() {
+  errorHandling.resetWorkspace()
+  // Clear all component state
+  projectOutline.value = null
+  requirementsDocument.value = null
+  requirementsSummary.value = null
+  teamsData.value = []
+  systemsData.value = []
+  adrsData.value = []
+  notesData.value = []
+  lastUpdated.value = null
+}
+
+function handleClearData() {
+  // Clear component-specific data
+  projectOutline.value = null
+  requirementsDocument.value = null
+  requirementsSummary.value = null
+  teamsData.value = []
+  systemsData.value = []
+  adrsData.value = []
+  notesData.value = []
+  lastUpdated.value = null
+}
+
+function handleLoadingTimeout() {
+  console.warn('Project overview loading timed out')
+  errorHandling.handleError(
+    new Error('Loading timeout: Project overview data took too long to load'),
+    'loading_timeout'
+  )
 }
 </script>
 
