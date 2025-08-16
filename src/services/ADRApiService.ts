@@ -1,16 +1,16 @@
-// src/services/ADRApiService.ts
+/**
+ * ADR API Service
+ * Handles all API operations for Architectural Decision Records
+ * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7
+ */
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import {
   ADR,
   CreateADRRequest,
   UpdateADRRequest,
-  ADRListOptions,
-  ADRSearchResult,
-  ADRSummary,
   ADRErrorType,
-  ADRError,
-  ADRStatus
+  ADRError
 } from '../types/adr';
 import { apiConfig, getVersionedPath } from '../config/api';
 import { ApiErrorInfo, ApiErrorType } from './ProjectApiService';
@@ -253,94 +253,14 @@ export class ADRApiService {
   }
 
   /**
-   * Check network connectivity
+   * List all ADRs for a project
+   * Requirements: 9.1, 9.2
    */
-  public static isNetworkAvailable(): boolean {
-    return isOnline;
-  }
-
-  /**
-   * Retry a request with exponential backoff
-   */
-  public static async retryRequest<T>(
-    requestFn: () => Promise<T>,
-    maxRetries: number = this.maxRetries
-  ): Promise<T> {
-    let lastError: any;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await requestFn();
-      } catch (error) {
-        lastError = error;
-
-        const errorInfo = error as ApiErrorInfo;
-        if (!errorInfo.canRetry || attempt === maxRetries) {
-          throw error;
-        }
-
-        const delay = this.calculateRetryDelay(attempt);
-        await this.delay(delay);
-      }
-    }
-
-    throw lastError;
-  }
-
-  /**
-   * List all ADRs for a project with optional filtering and pagination
-   * Requirements: 8.1, 8.2, 9.1, 9.2
-   */
-  public static async listADRs(projectId: string, options?: ADRListOptions): Promise<ADR[]> {
+  public static async listADRs(projectId: string): Promise<ADR[]> {
     try {
-      const params = new URLSearchParams();
-      
-      if (options?.skip !== undefined) {
-        params.append('skip', options.skip.toString());
-      }
-      
-      if (options?.limit !== undefined) {
-        params.append('limit', options.limit.toString());
-      }
-      
-      if (options?.sortBy) {
-        params.append('sort_by', options.sortBy);
-      }
-      
-      if (options?.sortOrder) {
-        params.append('sort_order', options.sortOrder);
-      }
-
-      // Add filter parameters
-      if (options?.filter) {
-        if (options.filter.status && options.filter.status.length > 0) {
-          params.append('status', options.filter.status.join(','));
-        }
-        
-        if (options.filter.author && options.filter.author.length > 0) {
-          params.append('author', options.filter.author.join(','));
-        }
-        
-        if (options.filter.tags && options.filter.tags.length > 0) {
-          params.append('tags', options.filter.tags.join(','));
-        }
-        
-        if (options.filter.dateRange) {
-          params.append('date_start', options.filter.dateRange.start.toISOString());
-          params.append('date_end', options.filter.dateRange.end.toISOString());
-        }
-        
-        if (options.filter.searchQuery) {
-          params.append('search', options.filter.searchQuery);
-        }
-      }
-
-      const queryString = params.toString();
-      const url = queryString 
-        ? getVersionedPath(`projects/${projectId}/adrs?${queryString}`)
-        : getVersionedPath(`projects/${projectId}/adrs`);
-
-      const response = await apiClient.get<ADR[]>(url);
+      const response = await apiClient.get<ADR[]>(
+        getVersionedPath(`projects/${projectId}/adrs`)
+      );
       return response.data.map(adr => this.mapToADR(adr));
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -349,12 +269,12 @@ export class ADRApiService {
 
   /**
    * Get a specific ADR by ID
-   * Requirements: 8.1, 8.3, 9.1
+   * Requirements: 9.1, 9.2
    */
-  public static async getADR(projectId: string, adrId: string): Promise<ADR> {
+  public static async getADR(adrId: string): Promise<ADR> {
     try {
       const response = await apiClient.get<ADR>(
-        getVersionedPath(`projects/${projectId}/adrs/${adrId}`)
+        getVersionedPath(`adrs/${adrId}`)
       );
       return this.mapToADR(response.data);
     } catch (error) {
@@ -364,7 +284,7 @@ export class ADRApiService {
 
   /**
    * Create a new ADR
-   * Requirements: 9.2, 9.4
+   * Requirements: 9.2, 9.3
    */
   public static async createADR(projectId: string, adr: CreateADRRequest): Promise<ADR> {
     try {
@@ -379,7 +299,8 @@ export class ADRApiService {
           alternatives: adr.alternatives,
           author: adr.author,
           tags: adr.tags || [],
-          supersedes: adr.supersedes || []
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }
       );
       return this.mapToADR(response.data);
@@ -392,11 +313,14 @@ export class ADRApiService {
    * Update an existing ADR
    * Requirements: 9.3, 9.4
    */
-  public static async updateADR(projectId: string, adrId: string, updates: UpdateADRRequest): Promise<ADR> {
+  public static async updateADR(adrId: string, updates: UpdateADRRequest): Promise<ADR> {
     try {
       const response = await apiClient.put<ADR>(
-        getVersionedPath(`projects/${projectId}/adrs/${adrId}`),
-        updates
+        getVersionedPath(`adrs/${adrId}`),
+        {
+          ...updates,
+          updated_at: new Date().toISOString()
+        }
       );
       return this.mapToADR(response.data);
     } catch (error) {
@@ -408,10 +332,10 @@ export class ADRApiService {
    * Delete an ADR
    * Requirements: 9.7
    */
-  public static async deleteADR(projectId: string, adrId: string): Promise<void> {
+  public static async deleteADR(adrId: string): Promise<void> {
     try {
       await apiClient.delete(
-        getVersionedPath(`projects/${projectId}/adrs/${adrId}`)
+        getVersionedPath(`adrs/${adrId}`)
       );
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -419,66 +343,62 @@ export class ADRApiService {
   }
 
   /**
-   * Search ADRs with full-text search support
-   * Requirements: 8.5, 9.5, 9.6
+   * Search ADRs with full-text search
+   * Requirements: 9.5, 9.6
    */
-  public static async searchADRs(projectId: string, query: string, options?: {
-    limit?: number;
-    includeHighlights?: boolean;
-  }): Promise<ADRSearchResult[]> {
+  public static async searchADRs(projectId: string, query: string): Promise<ADR[]> {
     try {
       const params = new URLSearchParams();
       params.append('q', query);
-      
-      if (options?.limit) {
-        params.append('limit', options.limit.toString());
-      }
-      
-      if (options?.includeHighlights !== undefined) {
-        params.append('include_highlights', options.includeHighlights.toString());
-      }
 
-      const response = await apiClient.get<ADRSearchResult[]>(
+      const response = await apiClient.get<ADR[]>(
         getVersionedPath(`projects/${projectId}/adrs/search?${params.toString()}`)
       );
-
-      return response.data.map(result => ({
-        ...result,
-        adr: this.mapToADR(result.adr)
-      }));
+      return response.data.map(adr => this.mapToADR(adr));
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }
   }
 
   /**
-   * Get ADR summary for project overview
-   * Requirements: 8.1, 8.2
+   * Filter ADRs by status, tags, or other criteria
+   * Requirements: 9.6
    */
-  public static async getADRSummary(projectId: string): Promise<ADRSummary> {
-    try {
-      const response = await apiClient.get<ADRSummary>(
-        getVersionedPath(`projects/${projectId}/adrs/summary`)
-      );
-
-      return {
-        ...response.data,
-        recent: response.data.recent.map(adr => this.mapToADR(adr)),
-        most_referenced: response.data.most_referenced.map(adr => this.mapToADR(adr))
-      };
-    } catch (error) {
-      throw this.handleApiError(error as AxiosError);
+  public static async filterADRs(
+    projectId: string,
+    options: {
+      status?: string;
+      tags?: string[];
+      author?: string;
+      dateFrom?: string;
+      dateTo?: string;
     }
-  }
-
-  /**
-   * Get ADRs that supersede a specific ADR
-   * Requirements: 8.4, 9.1
-   */
-  public static async getSupersedingADRs(projectId: string, adrId: string): Promise<ADR[]> {
+  ): Promise<ADR[]> {
     try {
+      const params = new URLSearchParams();
+      
+      if (options.status) {
+        params.append('status', options.status);
+      }
+      
+      if (options.tags && options.tags.length > 0) {
+        options.tags.forEach(tag => params.append('tags', tag));
+      }
+      
+      if (options.author) {
+        params.append('author', options.author);
+      }
+      
+      if (options.dateFrom) {
+        params.append('date_from', options.dateFrom);
+      }
+      
+      if (options.dateTo) {
+        params.append('date_to', options.dateTo);
+      }
+
       const response = await apiClient.get<ADR[]>(
-        getVersionedPath(`projects/${projectId}/adrs/${adrId}/superseding`)
+        getVersionedPath(`projects/${projectId}/adrs?${params.toString()}`)
       );
       return response.data.map(adr => this.mapToADR(adr));
     } catch (error) {
@@ -487,15 +407,15 @@ export class ADRApiService {
   }
 
   /**
-   * Get ADRs that are superseded by a specific ADR
-   * Requirements: 8.4, 9.1
+   * Get ADR statistics for a project
+   * Requirements: 9.1
    */
-  public static async getSupersededADRs(projectId: string, adrId: string): Promise<ADR[]> {
+  public static async getADRStats(projectId: string): Promise<Record<string, any>> {
     try {
-      const response = await apiClient.get<ADR[]>(
-        getVersionedPath(`projects/${projectId}/adrs/${adrId}/superseded`)
+      const response = await apiClient.get<Record<string, any>>(
+        getVersionedPath(`projects/${projectId}/adrs/stats`)
       );
-      return response.data.map(adr => this.mapToADR(adr));
+      return response.data;
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }
@@ -534,10 +454,6 @@ export class ADRApiService {
       throw new Error('Invalid ADR: consequences must be a string');
     }
 
-    if (typeof data.author !== 'string' || !data.author.trim()) {
-      throw new Error('Invalid ADR: author must be a non-empty string');
-    }
-
     // Parse dates with proper error handling
     let createdAt: Date;
     let updatedAt: Date;
@@ -560,25 +476,56 @@ export class ADRApiService {
       updatedAt = new Date();
     }
 
-    // Validate and normalize arrays
-    const tags = Array.isArray(data.tags) ? data.tags.filter(tag => typeof tag === 'string') : [];
-    const supersedes = Array.isArray(data.supersedes) ? data.supersedes.filter(id => typeof id === 'string') : [];
-
     return {
       id: data.id.toString(),
       project_id: data.project_id,
       title: data.title.trim(),
-      status: data.status as ADRStatus,
+      status: data.status,
       context: data.context,
       decision: data.decision,
       consequences: data.consequences,
-      alternatives: data.alternatives || undefined,
-      author: data.author.trim(),
+      alternatives: data.alternatives || '',
+      author: data.author || 'Unknown',
       created_at: createdAt,
       updated_at: updatedAt,
-      tags,
+      tags: Array.isArray(data.tags) ? data.tags : [],
       superseded_by: data.superseded_by || undefined,
-      supersedes
+      supersedes: Array.isArray(data.supersedes) ? data.supersedes : []
     };
+  }
+
+  /**
+   * Check network connectivity
+   */
+  public static isNetworkAvailable(): boolean {
+    return isOnline;
+  }
+
+  /**
+   * Retry a request with exponential backoff
+   */
+  public static async retryRequest<T>(
+    requestFn: () => Promise<T>,
+    maxRetries: number = this.maxRetries
+  ): Promise<T> {
+    let lastError: any;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await requestFn();
+      } catch (error) {
+        lastError = error;
+
+        const errorInfo = error as ApiErrorInfo;
+        if (!errorInfo.canRetry || attempt === maxRetries) {
+          throw error;
+        }
+
+        const delay = this.calculateRetryDelay(attempt);
+        await this.delay(delay);
+      }
+    }
+
+    throw lastError;
   }
 }

@@ -50,19 +50,10 @@
           <li class="nav-item">
             <button 
               class="nav-button" 
-              :class="{ active: activeSection === 'teams' }"
-              @click="setActiveSection('teams')"
+              :class="{ active: activeSection === 'adrs' }"
+              @click="setActiveSection('adrs')"
             >
-              👥 Teams
-            </button>
-          </li>
-          <li class="nav-item">
-            <button 
-              class="nav-button" 
-              :class="{ active: activeSection === 'tasks' }"
-              @click="setActiveSection('tasks')"
-            >
-              ✅ Tasks
+              📋 ADRs
             </button>
           </li>
           <li class="nav-item">
@@ -130,15 +121,9 @@
           @project-updated="handleProjectUpdated"
         />
 
-        <!-- Teams Section -->
-        <TeamsWorkspace 
-          v-if="activeSection === 'teams'"
-          :project="currentProject"
-        />
-
-        <!-- Tasks Section -->
-        <TasksWorkspace 
-          v-if="activeSection === 'tasks'"
+        <!-- ADRs Section -->
+        <ADRWorkspace 
+          v-if="activeSection === 'adrs'"
           :project="currentProject"
         />
 
@@ -159,8 +144,7 @@ import SolutionOutlineWorkspace from './SolutionOutlineWorkspace.vue'
 import ProjectOverviewWorkspace from './ProjectOverviewWorkspace.vue'
 import DiagramsWorkspace from './DiagramsWorkspace.vue'
 import RequirementsWorkspace from './RequirementsWorkspace.vue'
-import TeamsWorkspace from './TeamsWorkspace.vue'
-import TasksWorkspace from './TasksWorkspace.vue'
+import ADRWorkspace from './ADRWorkspace.vue'
 import NotesWorkspace from './NotesWorkspace.vue'
 import { Project } from '../types/project'
 import NotificationService from '../services/NotificationService'
@@ -213,7 +197,7 @@ watch(() => route?.params?.id, (newId) => {
 // Watch for section changes in URL
 watch(() => route?.params?.section, (newSection) => {
   if (newSection && typeof newSection === 'string') {
-    const validSections = ['project-overview', 'solution-outline', 'requirements', 'diagrams', 'teams', 'tasks', 'notes']
+    const validSections = ['project-overview', 'solution-outline', 'requirements', 'diagrams', 'adrs', 'notes']
     if (validSections.includes(newSection)) {
       activeSection.value = newSection
     }
@@ -240,7 +224,7 @@ async function loadProject(projectId: string) {
         
         // Set active section from URL or restore from localStorage
         const urlSection = route?.params?.section as string
-        const validSections = ['project-overview', 'solution-outline', 'requirements', 'diagrams', 'teams', 'tasks', 'notes']
+        const validSections = ['project-overview', 'solution-outline', 'requirements', 'diagrams', 'adrs', 'notes']
         
         if (urlSection && validSections.includes(urlSection)) {
           activeSection.value = urlSection
@@ -269,6 +253,13 @@ async function loadProject(projectId: string) {
 }
 
 function setActiveSection(section: string) {
+  // Validate section before setting
+  const validSections = ['project-overview', 'solution-outline', 'requirements', 'diagrams', 'adrs', 'notes']
+  if (!validSections.includes(section)) {
+    console.warn(`Invalid section: ${section}. Valid sections are: ${validSections.join(', ')}`)
+    return
+  }
+  
   activeSection.value = section
   
   // Update URL to reflect current section

@@ -7,6 +7,8 @@ import {
   CreateRequirementItemRequest,
   UpdateRequirementItemRequest,
   SaveRequirementsDocumentRequest,
+  SaveRequirementsSystemRequest,
+  BulkUpdateRequirementRequest,
   RequirementsErrorType,
   RequirementsError
 } from '../types/requirements';
@@ -489,6 +491,90 @@ export class RequirementsApiService {
       );
 
       return response.data;
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  /**
+   * Save the overall requirements system data for a project
+   * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
+   */
+  public static async saveRequirementsSystem(
+    projectId: string,
+    data: SaveRequirementsSystemRequest
+  ): Promise<void> {
+    try {
+      await apiClient.post(
+        getVersionedPath(`projects/${projectId}/requirements-system`),
+        {
+          document: data.document,
+          items: data.items,
+          systems: data.systems,
+          teams: data.teams,
+          metadata: data.metadata || {},
+          updated_at: new Date().toISOString()
+        }
+      );
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  /**
+   * Update the status of a specific requirement item
+   * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
+   */
+  public static async updateRequirementStatus(
+    itemId: string,
+    status: 'new' | 'accepted' | 'rejected'
+  ): Promise<RequirementItem> {
+    try {
+      const response = await apiClient.put<RequirementItem>(
+        getVersionedPath(`requirement-items/${itemId}/status`),
+        { 
+          status,
+          updated_at: new Date().toISOString()
+        }
+      );
+
+      return this.mapToRequirementItem(response.data);
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  /**
+   * Perform bulk updates on multiple requirements efficiently
+   * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
+   */
+  public static async bulkUpdateRequirements(
+    updates: BulkUpdateRequirementRequest[]
+  ): Promise<RequirementItem[]> {
+    // Validate updates array
+    if (!Array.isArray(updates) || updates.length === 0) {
+      throw new Error('Updates array must be non-empty');
+    }
+
+    // Validate each update object
+    for (const update of updates) {
+      if (!update.id || typeof update.id !== 'string') {
+        throw new Error('Each update must have a valid id');
+      }
+    }
+
+    try {
+      const response = await apiClient.put<RequirementItem[]>(
+        getVersionedPath(`requirement-items/bulk-update`),
+        {
+          updates: updates.map(update => ({
+            ...update,
+            updated_at: new Date().toISOString()
+          }))
+        }
+      );
+
+      return response.data.map(item => this.mapToRequirementItem(item));
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }

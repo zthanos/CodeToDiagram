@@ -93,11 +93,12 @@
         :aria-labelledby="'tab-teams'"
         :data-testid="'teams-panel'"
       >
-        <TeamsList
+        <TeamsTab
           :items="teamsData"
           :selected-team="tabState.teams.selectedTeam"
           :search-query="tabState.teams.searchQuery"
           :readonly="readonly"
+          :requirement-items="requirementItems"
           @team-select="handleTeamSelect"
           @team-create="handleTeamCreate"
           @team-update="handleTeamUpdate"
@@ -113,7 +114,7 @@
 import { ref, computed, watch } from 'vue'
 import RequirementsList from './RequirementsList.vue'
 import SystemsList from './SystemsList.vue'
-import TeamsList from './TeamsList.vue'
+import TeamsTab from './TeamsTab.vue'
 import type { RequirementItem, SystemInfo, TeamInfo, TabState } from '../types/requirements'
 
 interface Tab {

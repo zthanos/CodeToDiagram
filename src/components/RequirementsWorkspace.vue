@@ -306,6 +306,7 @@ import { useRouter, useRoute } from 'vue-router'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import RequirementsTabsContainer from './RequirementsTabsContainer.vue'
 import { RequirementsApiService } from '../services/RequirementsApiService'
+import { TeamsApiService } from '../services/TeamsApiService'
 import type {
   RequirementsDocument,
   RequirementItem,
@@ -695,8 +696,8 @@ async function initializeEmptyWorkspace() {
   requirementItems.value = []
   tabState.value.requirements.items = []
 
-  // Initialize sample systems and teams data (this would come from API in real implementation)
-  initializeSampleSystemsAndTeams()
+  // Load systems and teams data from API
+  await loadSystemsAndTeamsData()
 
   // Clear initialization flag after a tick to allow normal operation
   await nextTick()
@@ -751,7 +752,41 @@ async function retryLoadRequirements() {
   }
 }
 
-function initializeSampleSystemsAndTeams() {
+async function loadSystemsAndTeamsData() {
+  if (!props.project?.id) return
+
+  try {
+    // Load teams data from API
+    const teams = await TeamsApiService.listTeams(props.project.id)
+    teamsData.value = teams
+    tabState.value.teams.items = teams
+
+    console.log(`Loaded ${teams.length} teams from API`)
+  } catch (error: any) {
+    console.error('Failed to load teams data:', error)
+    
+    // Fall back to sample teams data if API fails
+    teamsData.value = [
+      {
+        id: '1',
+        name: 'Frontend Team',
+        role: 'Development',
+        members: ['Alice Johnson', 'Bob Smith'],
+        responsibilities: ['UI/UX Implementation', 'Client-side Logic']
+      },
+      {
+        id: '2',
+        name: 'Backend Team',
+        role: 'Development',
+        members: ['Charlie Brown', 'Diana Prince'],
+        responsibilities: ['API Development', 'Database Design']
+      }
+    ]
+    tabState.value.teams.items = teamsData.value
+    
+    showNotification('error', 'Failed to load teams data. Using sample data.')
+  }
+
   // Sample systems data (this would come from API in real implementation)
   systemsData.value = [
     {
@@ -770,27 +805,8 @@ function initializeSampleSystemsAndTeams() {
     }
   ]
 
-  // Sample teams data (this would come from API in real implementation)
-  teamsData.value = [
-    {
-      id: '1',
-      name: 'Frontend Team',
-      role: 'Development',
-      members: ['Alice Johnson', 'Bob Smith'],
-      responsibilities: ['UI/UX Implementation', 'Client-side Logic']
-    },
-    {
-      id: '2',
-      name: 'Backend Team',
-      role: 'Development',
-      members: ['Charlie Brown', 'Diana Prince'],
-      responsibilities: ['API Development', 'Database Design']
-    }
-  ]
-
-  // Update tab state for systems and teams
+  // Update tab state for systems
   tabState.value.systems.items = systemsData.value
-  tabState.value.teams.items = teamsData.value
 }
 
 async function saveRequirementsDocument(isAutoSave = false) {
@@ -1351,23 +1367,58 @@ function handleTeamSelect(teamId: string) {
   tabState.value.teams.selectedTeam = teamId
 }
 
-function handleTeamCreate(team: Omit<TeamInfo, 'id'>) {
-  const newTeam: TeamInfo = {
-    ...team,
-    id: Date.now().toString()
+async function handleTeamCreate(team: Omit<TeamInfo, 'id'>) {
+  if (!props.project?.id) return
+
+  try {
+    const newTeam = await TeamsApiService.createTeam(props.project.id, team)
+    teamsData.value.push(newTeam)
+    tabState.value.teams.items = teamsData.value
+    
+    showNotification('success', `Team "${newTeam.name}" created successfully`)
+    console.log('Team created:', newTeam)
+  } catch (error: any) {
+    console.error('Failed to create team:', error)
+    showNotification('error', `Failed to create team: ${error.message}`)
   }
-  teamsData.value.push(newTeam)
 }
 
-function handleTeamUpdate(teamId: string, updates: Partial<TeamInfo>) {
-  const index = teamsData.value.findIndex(t => t.id === teamId)
-  if (index !== -1) {
-    teamsData.value[index] = { ...teamsData.value[index], ...updates }
+async function handleTeamUpdate(teamId: string, updates: Partial<TeamInfo>) {
+  if (!props.project?.id) return
+
+  try {
+    const updatedTeam = await TeamsApiService.updateTeam(props.project.id, teamId, updates)
+    
+    const index = teamsData.value.findIndex(t => t.id === teamId)
+    if (index !== -1) {
+      teamsData.value[index] = updatedTeam
+      tabState.value.teams.items = teamsData.value
+    }
+    
+    showNotification('success', `Team "${updatedTeam.name}" updated successfully`)
+    console.log('Team updated:', updatedTeam)
+  } catch (error: any) {
+    console.error('Failed to update team:', error)
+    showNotification('error', `Failed to update team: ${error.message}`)
   }
 }
 
-function handleTeamDelete(teamId: string) {
-  teamsData.value = teamsData.value.filter(t => t.id !== teamId)
+async function handleTeamDelete(teamId: string) {
+  if (!props.project?.id) return
+
+  try {
+    await TeamsApiService.deleteTeam(props.project.id, teamId)
+    
+    const deletedTeam = teamsData.value.find(t => t.id === teamId)
+    teamsData.value = teamsData.value.filter(t => t.id !== teamId)
+    tabState.value.teams.items = teamsData.value
+    
+    showNotification('success', `Team "${deletedTeam?.name || 'Unknown'}" deleted successfully`)
+    console.log('Team deleted:', teamId)
+  } catch (error: any) {
+    console.error('Failed to delete team:', error)
+    showNotification('error', `Failed to delete team: ${error.message}`)
+  }
 }
 
 function handleTeamsSearchChange(query: string) {

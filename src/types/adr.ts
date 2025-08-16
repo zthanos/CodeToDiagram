@@ -1,12 +1,12 @@
 /**
  * TypeScript interfaces for ADR (Architectural Decision Records) data models
- * Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7
+ * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7
  */
 
-// ADR Status types
+// ADR Status enumeration
 export type ADRStatus = 'proposed' | 'accepted' | 'deprecated' | 'superseded';
 
-// ADR (API Response) - matches backend schema
+// ADR interface
 export interface ADR {
   id: string;
   project_id: string;
@@ -24,33 +24,7 @@ export interface ADR {
   supersedes?: string[];
 }
 
-// Create ADR Request
-export interface CreateADRRequest {
-  title: string;
-  status?: ADRStatus;
-  context: string;
-  decision: string;
-  consequences: string;
-  alternatives?: string;
-  author: string;
-  tags?: string[];
-  supersedes?: string[];
-}
-
-// Update ADR Request
-export interface UpdateADRRequest {
-  title?: string;
-  status?: ADRStatus;
-  context?: string;
-  decision?: string;
-  consequences?: string;
-  alternatives?: string;
-  tags?: string[];
-  superseded_by?: string;
-  supersedes?: string[];
-}
-
-// ADR Template for structured creation
+// ADR template for creating new ADRs
 export interface ADRTemplate {
   title: string;
   status: ADRStatus;
@@ -65,55 +39,129 @@ export interface ADRTemplate {
   };
 }
 
-// ADR Search Result
-export interface ADRSearchResult {
-  adr: ADR;
-  matches: {
-    field: string;
-    snippet: string;
-    highlights: Array<{ start: number; end: number }>;
-  }[];
-  score: number;
+// API request/response types
+export interface CreateADRRequest {
+  title: string;
+  status?: ADRStatus;
+  context: string;
+  decision: string;
+  consequences: string;
+  alternatives?: string;
+  author: string;
+  tags?: string[];
 }
 
-// ADR Filter Options
-export interface ADRFilterOptions {
-  status?: ADRStatus[];
-  author?: string[];
+export interface UpdateADRRequest {
+  title?: string;
+  status?: ADRStatus;
+  context?: string;
+  decision?: string;
+  consequences?: string;
+  alternatives?: string;
   tags?: string[];
+  superseded_by?: string;
+  supersedes?: string[];
+}
+
+// UI-optimized ADR with editing state
+export interface ADRUI extends ADR {
+  isEditing: boolean;
+  hasUnsavedChanges: boolean;
+  validationErrors: string[];
+}
+
+// ADR workspace state
+export interface ADRWorkspaceState {
+  // Core workspace state
+  isLoading: boolean;
+  isSaving: boolean;
+  hasChanges: boolean;
+  lastSaved: Date | null;
+  
+  // ADR data
+  adrs: ADR[];
+  selectedADR: ADR | null;
+  
+  // UI state
+  viewMode: 'list' | 'edit' | 'create';
+  searchQuery: string;
+  statusFilter: 'all' | ADRStatus;
+  tagFilter: string[];
+  sortBy: 'date' | 'title' | 'status';
+  sortOrder: 'asc' | 'desc';
+}
+
+// Search and filter interfaces
+export interface ADRSearchResult {
+  adr: ADR;
+  score: number;
+  matches: ADRSearchMatch[];
+}
+
+export interface ADRSearchMatch {
+  field: string;
+  value: string;
+  highlightedValue: string;
+  startIndex: number;
+  endIndex: number;
+}
+
+export interface ADRFilterConfig {
+  status: 'all' | ADRStatus;
+  tags: string[];
+  author: string;
   dateRange?: {
     start: Date;
     end: Date;
   };
+}
+
+// Component prop interfaces
+export interface ADRWorkspaceProps {
+  project: any; // Using any to avoid circular import, will be typed as Project in component
+}
+
+export interface ADRWorkspaceEmits {
+  'project-updated': [project: any]; // Using any to avoid circular import
+  'unsaved-changes': [hasChanges: boolean];
+}
+
+export interface ADREditorProps {
+  adr?: ADR;
+  mode: 'create' | 'edit';
+  readonly?: boolean;
+}
+
+export interface ADREditorEmits {
+  'save': [adr: ADR];
+  'cancel': [];
+  'delete': [adrId: string];
+}
+
+export interface ADRListProps {
+  adrs: ADR[];
   searchQuery?: string;
+  statusFilter?: 'all' | ADRStatus;
+  tagFilter?: string[];
+  readonly?: boolean;
 }
 
-// ADR List Options
-export interface ADRListOptions {
-  skip?: number;
-  limit?: number;
-  sortBy?: 'created_at' | 'updated_at' | 'title' | 'status';
-  sortOrder?: 'asc' | 'desc';
-  filter?: ADRFilterOptions;
-}
-
-// ADR Summary for project overview
-export interface ADRSummary {
-  total: number;
-  by_status: Record<ADRStatus, number>;
-  recent: ADR[];
-  most_referenced: ADR[];
+export interface ADRListEmits {
+  'adr-select': [adr: ADR];
+  'adr-create': [];
+  'adr-edit': [adr: ADR];
+  'adr-delete': [adrId: string];
+  'search-change': [query: string];
+  'filter-change': [filter: ADRFilterConfig];
 }
 
 // Error types specific to ADRs
 export enum ADRErrorType {
-  ADR_NOT_FOUND = 'adr_not_found',
-  ADR_CREATE_FAILED = 'adr_create_failed',
-  ADR_UPDATE_FAILED = 'adr_update_failed',
+  ADR_LOAD_FAILED = 'adr_load_failed',
+  ADR_SAVE_FAILED = 'adr_save_failed',
   ADR_DELETE_FAILED = 'adr_delete_failed',
-  ADR_SEARCH_FAILED = 'adr_search_failed',
-  VALIDATION_ERROR = 'validation_error',
-  NETWORK_ERROR = 'network_error'
+  ADR_VALIDATION_ERROR = 'adr_validation_error',
+  ADR_NETWORK_ERROR = 'adr_network_error'
 }
 
 export interface ADRError {
@@ -123,43 +171,4 @@ export interface ADRError {
   details?: any;
 }
 
-// Component prop interfaces
-export interface ADRWorkspaceProps {
-  project: Project;
-}
-
-export interface ADRWorkspaceEmits {
-  'adr-created': [adr: ADR];
-  'adr-updated': [adr: ADR];
-  'adr-deleted': [adrId: string];
-}
-
-export interface ADREditorProps {
-  adr?: ADR;
-  template?: ADRTemplate;
-  readonly?: boolean;
-}
-
-export interface ADREditorEmits {
-  'save': [adr: CreateADRRequest | UpdateADRRequest];
-  'cancel': [];
-  'delete': [adrId: string];
-}
-
-export interface ADRListProps {
-  adrs: ADR[];
-  filter?: ADRFilterOptions;
-  searchQuery?: string;
-  readonly?: boolean;
-}
-
-export interface ADRListEmits {
-  'adr-select': [adr: ADR];
-  'adr-edit': [adr: ADR];
-  'adr-delete': [adrId: string];
-  'filter-change': [filter: ADRFilterOptions];
-  'search-change': [query: string];
-}
-
-// Import Project type from existing types
-import type { Project } from './project';
+// Note: Project type is imported in components to avoid circular imports

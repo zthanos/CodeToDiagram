@@ -93,6 +93,23 @@ const routes = [
     path: '/project',
     redirect: '/'
   },
+  // Redirect old Teams workspace routes to Requirements workspace with teams tab
+  {
+    path: '/project/:id/teams',
+    redirect: to => ({
+      name: 'ProjectWorkspace',
+      params: { id: to.params.id, section: 'requirements' },
+      query: { tab: 'teams' }
+    })
+  },
+  // Redirect old Tasks workspace routes to Project Overview
+  {
+    path: '/project/:id/tasks',
+    redirect: to => ({
+      name: 'ProjectWorkspace',
+      params: { id: to.params.id, section: 'project-overview' }
+    })
+  },
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',

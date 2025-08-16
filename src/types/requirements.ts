@@ -125,6 +125,22 @@ export interface UpdateRequirementItemRequest {
   status?: 'new' | 'accepted' | 'rejected';
 }
 
+export interface SaveRequirementsSystemRequest {
+  document?: RequirementsDocument;
+  items?: RequirementItem[];
+  systems?: any[];
+  teams?: any[];
+  metadata?: Record<string, any>;
+}
+
+export interface BulkUpdateRequirementRequest {
+  id: string;
+  title?: string;
+  description?: string;
+  status?: 'new' | 'accepted' | 'rejected';
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+}
+
 // Error types specific to requirements
 export enum RequirementsErrorType {
   PDF_UPLOAD_FAILED = 'pdf_upload_failed',

@@ -8,34 +8,144 @@
     <!-- Header with controls -->
     <div class="requirements-list__header">
       <div class="requirements-list__controls">
-        <!-- Search input -->
+        <!-- Advanced search input with suggestions -->
         <div class="requirements-list__search">
-          <input
-            v-model="localSearchQuery"
-            type="text"
-            class="requirements-list__search-input"
-            placeholder="Search requirements..."
-            :data-testid="'requirements-search'"
-            @input="handleSearchChange"
-            aria-label="Search requirements"
-          />
-          <div class="requirements-list__search-icon">🔍</div>
+          <div class="requirements-list__search-container">
+            <input
+              ref="searchInput"
+              v-model="localSearchQuery"
+              type="text"
+              class="requirements-list__search-input"
+              :placeholder="searchPlaceholder"
+              :data-testid="'requirements-search'"
+              @input="handleSearchInput"
+              @keydown="handleSearchKeydown"
+              @focus="showSearchSuggestions = true"
+              @blur="hideSearchSuggestions"
+              aria-label="Search requirements"
+              autocomplete="off"
+            />
+            <div class="requirements-list__search-icon">🔍</div>
+            
+            <!-- Search mode toggle -->
+            <button
+              class="requirements-list__search-mode"
+              @click="toggleSearchMode"
+              :title="searchModeTooltip"
+              :data-testid="'search-mode-toggle'"
+            >
+              {{ searchModeIcon }}
+            </button>
+
+            <!-- Clear search button -->
+            <button
+              v-if="localSearchQuery"
+              class="requirements-list__search-clear"
+              @click="clearSearch"
+              :data-testid="'clear-search'"
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          </div>
+
+          <!-- Search suggestions dropdown -->
+          <div 
+            v-if="showSearchSuggestions && searchSuggestions.length > 0"
+            class="requirements-list__search-suggestions"
+            :data-testid="'search-suggestions'"
+          >
+            <div
+              v-for="(suggestion, index) in searchSuggestions"
+              :key="suggestion"
+              class="requirements-list__search-suggestion"
+              :class="{ 'active': selectedSuggestionIndex === index }"
+              @mousedown="selectSuggestion(suggestion)"
+              :data-testid="`search-suggestion-${index}`"
+            >
+              {{ suggestion }}
+            </div>
+          </div>
+
+          <!-- Search history dropdown -->
+          <div 
+            v-if="showSearchHistory && searchHistory.length > 0"
+            class="requirements-list__search-history"
+            :data-testid="'search-history'"
+          >
+            <div class="requirements-list__search-history-header">Recent searches</div>
+            <div
+              v-for="(historyItem, index) in searchHistory"
+              :key="historyItem"
+              class="requirements-list__search-history-item"
+              @mousedown="selectHistoryItem(historyItem)"
+              :data-testid="`search-history-${index}`"
+            >
+              {{ historyItem }}
+            </div>
+          </div>
         </div>
 
-        <!-- Filter dropdown -->
-        <div class="requirements-list__filter">
-          <select
-            v-model="localFilter"
-            class="requirements-list__filter-select"
-            :data-testid="'requirements-filter'"
-            @change="handleFilterChange"
-            aria-label="Filter requirements by status"
+        <!-- Advanced filters -->
+        <div class="requirements-list__filters">
+          <!-- Status filter -->
+          <div class="requirements-list__filter">
+            <select
+              v-model="localFilter"
+              class="requirements-list__filter-select"
+              :data-testid="'requirements-filter'"
+              @change="handleFilterChange"
+              aria-label="Filter requirements by status"
+            >
+              <option value="all">All Status</option>
+              <option value="new">New</option>
+              <option value="accepted">Accepted</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+
+          <!-- Priority filter -->
+          <div class="requirements-list__filter">
+            <select
+              v-model="priorityFilter"
+              class="requirements-list__filter-select"
+              :data-testid="'priority-filter'"
+              @change="handlePriorityFilterChange"
+              aria-label="Filter requirements by priority"
+            >
+              <option value="all">All Priority</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+
+          <!-- Source filter -->
+          <div class="requirements-list__filter">
+            <select
+              v-model="sourceFilter"
+              class="requirements-list__filter-select"
+              :data-testid="'source-filter'"
+              @change="handleSourceFilterChange"
+              aria-label="Filter requirements by source"
+            >
+              <option value="all">All Sources</option>
+              <option value="manual">Manual</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+
+          <!-- Advanced filters toggle -->
+          <button
+            class="requirements-list__advanced-filters-toggle"
+            @click="showAdvancedFilters = !showAdvancedFilters"
+            :class="{ 'active': showAdvancedFilters }"
+            :data-testid="'advanced-filters-toggle'"
+            aria-label="Toggle advanced filters"
           >
-            <option value="all">All Requirements</option>
-            <option value="new">New</option>
-            <option value="accepted">Accepted</option>
-            <option value="rejected">Rejected</option>
-          </select>
+            🔧 Filters
+          </button>
         </div>
 
         <!-- Add new requirement button -->
@@ -48,6 +158,115 @@
         >
           + Add Requirement
         </button>
+      </div>
+
+      <!-- Advanced filters panel -->
+      <div 
+        v-if="showAdvancedFilters"
+        class="requirements-list__advanced-filters"
+        :data-testid="'advanced-filters-panel'"
+      >
+        <div class="requirements-list__advanced-filters-content">
+          <!-- Date range filter -->
+          <div class="requirements-list__filter-group">
+            <label class="requirements-list__filter-label">Date Range:</label>
+            <div class="requirements-list__date-range">
+              <input
+                v-model="dateRangeStart"
+                type="date"
+                class="requirements-list__date-input"
+                :data-testid="'date-range-start'"
+                @change="handleDateRangeChange"
+              />
+              <span class="requirements-list__date-separator">to</span>
+              <input
+                v-model="dateRangeEnd"
+                type="date"
+                class="requirements-list__date-input"
+                :data-testid="'date-range-end'"
+                @change="handleDateRangeChange"
+              />
+            </div>
+          </div>
+
+          <!-- Search options -->
+          <div class="requirements-list__filter-group">
+            <label class="requirements-list__filter-label">Search Options:</label>
+            <div class="requirements-list__search-options">
+              <label class="requirements-list__checkbox-label">
+                <input
+                  v-model="caseSensitive"
+                  type="checkbox"
+                  class="requirements-list__checkbox"
+                  :data-testid="'case-sensitive'"
+                  @change="handleSearchOptionsChange"
+                />
+                Case sensitive
+              </label>
+              <label class="requirements-list__checkbox-label">
+                <input
+                  v-model="wholeWords"
+                  type="checkbox"
+                  class="requirements-list__checkbox"
+                  :data-testid="'whole-words'"
+                  @change="handleSearchOptionsChange"
+                />
+                Whole words only
+              </label>
+              <label class="requirements-list__checkbox-label">
+                <input
+                  v-model="fuzzySearch"
+                  type="checkbox"
+                  class="requirements-list__checkbox"
+                  :data-testid="'fuzzy-search'"
+                  @change="handleSearchOptionsChange"
+                />
+                Fuzzy search
+              </label>
+            </div>
+          </div>
+
+          <!-- Filter actions -->
+          <div class="requirements-list__filter-actions">
+            <button
+              class="requirements-list__filter-btn requirements-list__filter-btn--clear"
+              @click="clearAllFilters"
+              :data-testid="'clear-all-filters'"
+            >
+              Clear All
+            </button>
+            <button
+              class="requirements-list__filter-btn requirements-list__filter-btn--load"
+              @click="loadFilterPreset"
+              :data-testid="'load-filter-preset'"
+            >
+              Load Preset
+            </button>
+            <button
+              class="requirements-list__filter-btn requirements-list__filter-btn--save"
+              @click="saveFilterPreset"
+              :data-testid="'save-filter-preset'"
+            >
+              Save Preset
+            </button>
+          </div>
+
+          <!-- User feedback messages -->
+          <div 
+            v-if="showFilterSaveConfirmation"
+            class="requirements-list__feedback requirements-list__feedback--success"
+            :data-testid="'filter-save-success'"
+          >
+            ✓ Filter preset saved successfully
+          </div>
+          <div 
+            v-if="showFilterSaveError"
+            class="requirements-list__feedback requirements-list__feedback--error"
+            :data-testid="'filter-save-error'"
+          >
+            ✗ Failed to save filter preset
+          </div>
+        </div>
       </div>
 
       <!-- Bulk operations bar (shown when items are selected) -->
@@ -242,6 +461,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import RequirementItem from './RequirementItem.vue'
+import { useAdvancedSearch } from '../composables/useAdvancedSearch'
+import SearchService from '../services/SearchService'
 
 // Define interfaces locally to avoid import issues during testing
 interface RequirementItem {
@@ -249,6 +470,7 @@ interface RequirementItem {
   title: string;
   description: string;
   status: 'new' | 'accepted' | 'rejected';
+  priority: 'low' | 'medium' | 'high' | 'critical';
   created_at: Date;
   updated_at: Date;
   source: 'manual' | 'pdf';
@@ -274,14 +496,58 @@ const emit = defineEmits<{
   'item-create': [requirement: Partial<RequirementItem>];
   'filter-change': [filter: 'all' | 'new' | 'accepted' | 'rejected'];
   'search-change': [query: string];
+  'advanced-filter-change': [filters: any];
 }>()
+
+// Advanced search composable
+const {
+  searchConfig,
+  filterConfig,
+  isSearching,
+  searchResults,
+  searchHistory,
+  hasActiveFilters,
+  hasActiveSearch,
+  performSearch,
+  applyFilters,
+  updateSearchConfig,
+  updateFilterConfig,
+  resetSearch,
+  resetFilters,
+  highlightMatch
+} = useAdvancedSearch()
+
+// Search service
+const searchService = SearchService.getInstance()
 
 // Local state
 const localFilter = ref(props.filter)
 const localSearchQuery = ref(props.searchQuery)
+const priorityFilter = ref<'all' | 'low' | 'medium' | 'high' | 'critical'>('all')
+const sourceFilter = ref<'all' | 'manual' | 'pdf'>('all')
 const selectedItems = ref(new Set<string>())
 const showBulkStatusDialog = ref(false)
 const bulkStatusValue = ref<'new' | 'accepted' | 'rejected'>('new')
+
+// Advanced search state
+const showAdvancedFilters = ref(false)
+const showSearchSuggestions = ref(false)
+const showSearchHistory = ref(false)
+const searchSuggestions = ref<string[]>([])
+const selectedSuggestionIndex = ref(-1)
+const searchMode = ref<'simple' | 'fuzzy' | 'regex' | 'multi'>('simple')
+const dateRangeStart = ref('')
+const dateRangeEnd = ref('')
+const caseSensitive = ref(false)
+const wholeWords = ref(false)
+const fuzzySearch = ref(false)
+
+// User feedback state
+const showFilterSaveConfirmation = ref(false)
+const showFilterSaveError = ref(false)
+
+// Refs
+const searchInput = ref<HTMLInputElement>()
 
 // Virtual scrolling state
 const scrollContainer = ref<HTMLElement>()
@@ -299,17 +565,102 @@ watch(() => props.searchQuery, (newQuery) => {
   localSearchQuery.value = newQuery
 })
 
+// Watch for advanced search changes with real-time filtering
+watch([localSearchQuery, searchMode, caseSensitive, wholeWords, fuzzySearch], async () => {
+  if (localSearchQuery.value.trim()) {
+    await performAdvancedSearch()
+  } else {
+    searchResults.value = []
+  }
+  
+  // Emit advanced filter change for real-time updates
+  emit('advanced-filter-change', {
+    status: localFilter.value,
+    priority: priorityFilter.value,
+    source: sourceFilter.value,
+    dateRange: dateRangeStart.value || dateRangeEnd.value ? {
+      start: dateRangeStart.value,
+      end: dateRangeEnd.value
+    } : null,
+    searchOptions: {
+      caseSensitive: caseSensitive.value,
+      wholeWords: wholeWords.value,
+      fuzzySearch: fuzzySearch.value,
+      mode: searchMode.value
+    }
+  })
+}, { debounce: 300 })
+
 // Computed properties
+const searchPlaceholder = computed(() => {
+  const modes = {
+    simple: 'Search requirements...',
+    fuzzy: 'Fuzzy search requirements...',
+    regex: 'Regex search requirements...',
+    multi: 'Multi-term search (use quotes for phrases)...'
+  }
+  return modes[searchMode.value]
+})
+
+const searchModeIcon = computed(() => {
+  const icons = {
+    simple: '🔍',
+    fuzzy: '🔍~',
+    regex: '🔍.*',
+    multi: '🔍+'
+  }
+  return icons[searchMode.value]
+})
+
+const searchModeTooltip = computed(() => {
+  const tooltips = {
+    simple: 'Simple text search',
+    fuzzy: 'Fuzzy search (finds similar matches)',
+    regex: 'Regular expression search',
+    multi: 'Multi-term search with AND/OR logic'
+  }
+  return tooltips[searchMode.value]
+})
+
 const filteredItems = computed(() => {
   let filtered = props.items || []
 
-  // Apply status filter
+  // Apply basic filters first
   if (localFilter.value !== 'all') {
     filtered = filtered.filter(item => item.status === localFilter.value)
   }
 
-  // Apply search filter
-  if (localSearchQuery.value.trim()) {
+  if (priorityFilter.value !== 'all') {
+    filtered = filtered.filter(item => item.priority === priorityFilter.value)
+  }
+
+  if (sourceFilter.value !== 'all') {
+    filtered = filtered.filter(item => item.source === sourceFilter.value)
+  }
+
+  // Apply date range filter
+  if (dateRangeStart.value || dateRangeEnd.value) {
+    filtered = filtered.filter(item => {
+      const itemDate = new Date(item.created_at)
+      const startDate = dateRangeStart.value ? new Date(dateRangeStart.value) : null
+      const endDate = dateRangeEnd.value ? new Date(dateRangeEnd.value) : null
+
+      if (startDate && itemDate < startDate) return false
+      if (endDate && itemDate > endDate) return false
+      return true
+    })
+  }
+
+  // Apply search if active
+  if (hasActiveSearch.value && searchResults.value.length > 0) {
+    const searchResultIds = new Set(
+      searchResults.value
+        .filter(result => result.category === 'requirements')
+        .map(result => result.item.id)
+    )
+    filtered = filtered.filter(item => searchResultIds.has(item.id))
+  } else if (localSearchQuery.value.trim() && searchMode.value === 'simple') {
+    // Fallback to simple search if advanced search hasn't run
     const query = localSearchQuery.value.toLowerCase().trim()
     filtered = filtered.filter(item => 
       item.title.toLowerCase().includes(query) ||
@@ -349,15 +700,268 @@ const isSomeSelected = computed(() => {
   return selectedItems.value.size > 0 && !isAllVisibleSelected.value
 })
 
+// Advanced search methods
+const performAdvancedSearch = async () => {
+  if (!localSearchQuery.value.trim()) {
+    searchResults.value = []
+    return
+  }
+
+  const query = localSearchQuery.value.trim()
+  const fields = ['title', 'description']
+
+  try {
+    let results = []
+
+    switch (searchMode.value) {
+      case 'fuzzy':
+        results = searchService.fuzzySearch(props.items, query, fields, 0.6)
+        break
+      case 'regex':
+        results = searchService.regexSearch(props.items, query, fields, caseSensitive.value ? 'g' : 'gi')
+        break
+      case 'multi':
+        results = searchService.multiTermSearch(props.items, query, fields, 'OR', caseSensitive.value)
+        break
+      default:
+        results = searchService.exactSearch(props.items, query, fields, caseSensitive.value)
+    }
+
+    searchResults.value = results
+  } catch (error) {
+    console.warn('Search error:', error)
+    searchResults.value = []
+  }
+}
+
+const generateSearchSuggestions = async () => {
+  if (!localSearchQuery.value.trim() || localSearchQuery.value.length < 2) {
+    searchSuggestions.value = []
+    return
+  }
+
+  const suggestions = searchService.getSearchSuggestions(
+    props.items,
+    localSearchQuery.value,
+    ['title', 'description'],
+    5
+  )
+
+  searchSuggestions.value = suggestions
+}
+
+const toggleSearchMode = () => {
+  const modes: Array<typeof searchMode.value> = ['simple', 'fuzzy', 'regex', 'multi']
+  const currentIndex = modes.indexOf(searchMode.value)
+  const nextIndex = (currentIndex + 1) % modes.length
+  searchMode.value = modes[nextIndex]
+}
+
+const clearSearch = () => {
+  localSearchQuery.value = ''
+  searchResults.value = []
+  searchSuggestions.value = []
+  showSearchSuggestions.value = false
+  emit('search-change', '')
+}
+
+const selectSuggestion = (suggestion: string) => {
+  localSearchQuery.value = suggestion
+  showSearchSuggestions.value = false
+  searchInput.value?.focus()
+  handleSearchChange()
+}
+
+const selectHistoryItem = (historyItem: string) => {
+  localSearchQuery.value = historyItem
+  showSearchHistory.value = false
+  searchInput.value?.focus()
+  handleSearchChange()
+}
+
+const hideSearchSuggestions = () => {
+  // Delay hiding to allow click events to fire
+  setTimeout(() => {
+    showSearchSuggestions.value = false
+    showSearchHistory.value = false
+  }, 200)
+}
+
 // Event handlers
+const handleSearchInput = async () => {
+  emit('search-change', localSearchQuery.value)
+  clearSelection() // Clear selection when search changes
+  
+  if (localSearchQuery.value.trim()) {
+    await generateSearchSuggestions()
+    showSearchSuggestions.value = true
+    showSearchHistory.value = false
+  } else {
+    showSearchSuggestions.value = false
+    showSearchHistory.value = searchHistory.value.length > 0
+  }
+}
+
 const handleSearchChange = () => {
   emit('search-change', localSearchQuery.value)
   clearSelection() // Clear selection when search changes
 }
 
+const handleSearchKeydown = (event: KeyboardEvent) => {
+  if (showSearchSuggestions.value && searchSuggestions.value.length > 0) {
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault()
+        selectedSuggestionIndex.value = Math.min(
+          selectedSuggestionIndex.value + 1,
+          searchSuggestions.value.length - 1
+        )
+        break
+      case 'ArrowUp':
+        event.preventDefault()
+        selectedSuggestionIndex.value = Math.max(selectedSuggestionIndex.value - 1, -1)
+        break
+      case 'Enter':
+        event.preventDefault()
+        if (selectedSuggestionIndex.value >= 0) {
+          selectSuggestion(searchSuggestions.value[selectedSuggestionIndex.value])
+        }
+        break
+      case 'Escape':
+        showSearchSuggestions.value = false
+        selectedSuggestionIndex.value = -1
+        break
+    }
+  }
+}
+
 const handleFilterChange = () => {
   emit('filter-change', localFilter.value)
+  emit('advanced-filter-change', {
+    status: localFilter.value,
+    priority: priorityFilter.value,
+    source: sourceFilter.value,
+    dateRange: dateRangeStart.value || dateRangeEnd.value ? {
+      start: dateRangeStart.value,
+      end: dateRangeEnd.value
+    } : null
+  })
   clearSelection() // Clear selection when filter changes
+}
+
+const handlePriorityFilterChange = () => {
+  handleFilterChange()
+}
+
+const handleSourceFilterChange = () => {
+  handleFilterChange()
+}
+
+const handleDateRangeChange = () => {
+  handleFilterChange()
+}
+
+const handleSearchOptionsChange = () => {
+  updateSearchConfig({
+    caseSensitive: caseSensitive.value,
+    wholeWords: wholeWords.value,
+    fuzzySearch: fuzzySearch.value
+  })
+}
+
+const clearAllFilters = () => {
+  localFilter.value = 'all'
+  priorityFilter.value = 'all'
+  sourceFilter.value = 'all'
+  dateRangeStart.value = ''
+  dateRangeEnd.value = ''
+  caseSensitive.value = false
+  wholeWords.value = false
+  fuzzySearch.value = false
+  searchMode.value = 'simple'
+  
+  resetFilters()
+  resetSearch()
+  clearSearch()
+  
+  handleFilterChange()
+}
+
+const saveFilterPreset = () => {
+  const preset = {
+    name: `Filter Preset ${new Date().toLocaleString()}`,
+    timestamp: new Date().toISOString(),
+    status: localFilter.value,
+    priority: priorityFilter.value,
+    source: sourceFilter.value,
+    dateRange: {
+      start: dateRangeStart.value,
+      end: dateRangeEnd.value
+    },
+    searchOptions: {
+      caseSensitive: caseSensitive.value,
+      wholeWords: wholeWords.value,
+      fuzzySearch: fuzzySearch.value,
+      mode: searchMode.value
+    }
+  }
+  
+  try {
+    // Get existing presets
+    const existingPresets = JSON.parse(localStorage.getItem('requirementsList_filterPresets') || '[]')
+    
+    // Add new preset
+    existingPresets.unshift(preset)
+    
+    // Keep only last 10 presets
+    if (existingPresets.length > 10) {
+      existingPresets.splice(10)
+    }
+    
+    // Save updated presets
+    localStorage.setItem('requirementsList_filterPresets', JSON.stringify(existingPresets))
+    localStorage.setItem('requirementsList_filterPreset', JSON.stringify(preset))
+    
+    // Show user feedback
+    showFilterSaveConfirmation.value = true
+    setTimeout(() => {
+      showFilterSaveConfirmation.value = false
+    }, 3000)
+  } catch (error) {
+    console.warn('Failed to save filter preset:', error)
+    showFilterSaveError.value = true
+    setTimeout(() => {
+      showFilterSaveError.value = false
+    }, 3000)
+  }
+}
+
+const loadFilterPreset = () => {
+  try {
+    const preset = localStorage.getItem('requirementsList_filterPreset')
+    if (preset) {
+      const parsedPreset = JSON.parse(preset)
+      
+      // Apply preset values
+      localFilter.value = parsedPreset.status || 'all'
+      priorityFilter.value = parsedPreset.priority || 'all'
+      sourceFilter.value = parsedPreset.source || 'all'
+      dateRangeStart.value = parsedPreset.dateRange?.start || ''
+      dateRangeEnd.value = parsedPreset.dateRange?.end || ''
+      
+      if (parsedPreset.searchOptions) {
+        caseSensitive.value = parsedPreset.searchOptions.caseSensitive || false
+        wholeWords.value = parsedPreset.searchOptions.wholeWords || false
+        fuzzySearch.value = parsedPreset.searchOptions.fuzzySearch || false
+        searchMode.value = parsedPreset.searchOptions.mode || 'simple'
+      }
+      
+      // Trigger filter change
+      handleFilterChange()
+    }
+  } catch (error) {
+    console.warn('Failed to load filter preset:', error)
+  }
 }
 
 const handleAddRequirement = () => {
@@ -419,6 +1023,24 @@ const handleSelectAll = (event: Event) => {
 const clearSelection = () => {
   selectedItems.value.clear()
 }
+
+// Component lifecycle
+onMounted(() => {
+  // Load saved filter preset on component mount
+  loadFilterPreset()
+  
+  // Initialize virtual scrolling
+  if (scrollContainer.value) {
+    const rect = scrollContainer.value.getBoundingClientRect()
+    containerHeight.value = rect.height || 600
+    visibleCount.value = Math.ceil(containerHeight.value / itemHeight.value) + 2
+  }
+})
+
+onUnmounted(() => {
+  // Save current filter state before unmounting
+  saveFilterPreset()
+})
 
 const handleBulkDelete = () => {
   if (confirm(`Are you sure you want to delete ${selectedItems.value.size} requirement${selectedItems.value.size === 1 ? '' : 's'}?`)) {
@@ -486,15 +1108,22 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
+/* Advanced search */
 .requirements-list__search {
   position: relative;
   flex: 1;
-  min-width: 200px;
+  min-width: 300px;
+}
+
+.requirements-list__search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .requirements-list__search-input {
   width: 100%;
-  padding: 8px 12px 8px 36px;
+  padding: 8px 80px 8px 36px;
   border: 1px solid #e1e5e9;
   border-radius: 6px;
   font-size: 14px;
@@ -517,6 +1146,100 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+.requirements-list__search-mode {
+  position: absolute;
+  right: 32px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #6a737d;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.requirements-list__search-mode:hover {
+  background: #e1e5e9;
+  color: #24292e;
+}
+
+.requirements-list__search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #6a737d;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.requirements-list__search-clear:hover {
+  background: #e1e5e9;
+  color: #24292e;
+}
+
+/* Search suggestions */
+.requirements-list__search-suggestions,
+.requirements-list__search-history {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e1e5e9;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.requirements-list__search-suggestion,
+.requirements-list__search-history-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  border-bottom: 1px solid #f6f8fa;
+  transition: background-color 0.2s ease;
+}
+
+.requirements-list__search-suggestion:hover,
+.requirements-list__search-history-item:hover,
+.requirements-list__search-suggestion.active {
+  background: #f6f8fa;
+}
+
+.requirements-list__search-suggestion:last-child,
+.requirements-list__search-history-item:last-child {
+  border-bottom: none;
+}
+
+.requirements-list__search-history-header {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6a737d;
+  background: #f6f8fa;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+/* Filters */
+.requirements-list__filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .requirements-list__filter {
   flex-shrink: 0;
 }
@@ -529,12 +1252,134 @@ onUnmounted(() => {
   font-size: 14px;
   cursor: pointer;
   transition: border-color 0.2s ease;
+  min-width: 120px;
 }
 
 .requirements-list__filter-select:focus {
   outline: none;
   border-color: #0366d6;
   box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1);
+}
+
+.requirements-list__advanced-filters-toggle {
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #6a737d;
+}
+
+.requirements-list__advanced-filters-toggle:hover,
+.requirements-list__advanced-filters-toggle.active {
+  background: #0366d6;
+  border-color: #0366d6;
+  color: #ffffff;
+}
+
+/* Advanced filters panel */
+.requirements-list__advanced-filters {
+  margin-top: 12px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+}
+
+.requirements-list__advanced-filters-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.requirements-list__filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.requirements-list__filter-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #24292e;
+}
+
+.requirements-list__date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.requirements-list__date-input {
+  padding: 6px 8px;
+  border: 1px solid #e1e5e9;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.requirements-list__date-separator {
+  font-size: 14px;
+  color: #6a737d;
+}
+
+.requirements-list__search-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.requirements-list__checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #24292e;
+  cursor: pointer;
+}
+
+.requirements-list__checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.requirements-list__filter-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.requirements-list__filter-btn {
+  padding: 8px 16px;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.requirements-list__filter-btn--clear {
+  background: #ffffff;
+  color: #6a737d;
+}
+
+.requirements-list__filter-btn--clear:hover {
+  background: #f6f8fa;
+  color: #24292e;
+}
+
+.requirements-list__filter-btn--save {
+  background: #28a745;
+  border-color: #28a745;
+  color: #ffffff;
+}
+
+.requirements-list__filter-btn--save:hover {
+  background: #218838;
+  border-color: #218838;
 }
 
 .requirements-list__add-btn {
@@ -879,8 +1724,40 @@ onUnmounted(() => {
   .requirements-list__filter-select,
   .requirements-list__add-btn,
   .requirements-list__bulk-btn,
-  .requirements-list__dialog-btn {
+  .requirements-list__dialog-btn,
+  .requirements-list__search-mode,
+  .requirements-list__search-clear,
+  .requirements-list__advanced-filters-toggle,
+  .requirements-list__filter-btn {
     transition: none;
   }
+}
+
+/* Search highlighting */
+:deep(.search-highlight) {
+  background: #fff5b4;
+  color: #735c0f;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+/* Loading state for search */
+.requirements-list__search-loading {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e1e5e9;
+  border-top: 2px solid #0366d6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translateY(-50%) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(360deg); }
 }
 </style>
