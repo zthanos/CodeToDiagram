@@ -3,6 +3,12 @@
  * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5
  */
 
+import { ADR } from "./adr";
+import {Note} from "./notes"
+// import {System} from "./project"
+import { Team } from "./project";
+import { SystemInfo } from "./requirements";
+
 // Project Outline (API Response) - matches backend schema
 export interface ProjectOutline {
   id: string;
@@ -10,6 +16,10 @@ export interface ProjectOutline {
   content: string;
   status: 'draft' | 'active' | 'archived';
   version: number;
+  adrs: ADR[];
+  notes: Note[];
+   systems: SystemInfo[];
+  teams: Team[];
   working_version: number; // Latest version
   created_at: string;
   updated_at: string;

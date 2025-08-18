@@ -3,6 +3,9 @@
  * Requirements: 8.1, 8.2, 14.1
  */
 
+import { ADR } from "./adr";
+import { Note } from "./notes"
+
 // Diagram type enumeration
 export type DiagramType = 'flowchart' | 'sequence' | 'class' | 'state' | 'er' | 'gantt' | 'pie' | 'journey';
 
@@ -117,6 +120,8 @@ export interface Project {
   requirements_outline?: RequirementsOutline | null;
   teams: Team[];
   tasks: Task[];
+  adrs: ADR[];
+  notes: Note[];
   
   settings: ProjectSettings;
   metadata: ProjectMetadata;

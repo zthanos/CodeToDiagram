@@ -1,6 +1,309 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import axios from 'axios';
 import { ADRApiService } from '../../services/ADRApiService';
-import { ADR, ADRStatus } from '../../types/adr';
+import { ADR, ADRStatus, UpsertADRRequest, ADRListResponse } from '../../types/adr';
+
+// Mock the API config
+vi.mock('../../config/api', () => ({
+  apiConfig: {
+    baseUrl: 'http://localhost:8000',
+    version: 'v1',
+    timeout: 30000,
+    maxRetries: 3,
+    retryDelay: 1000
+  },
+  getVersionedPath: (path: string) => `/api/v1/${path.startsWith('/') ? path.slice(1) : path}`
+}));
+
+// Mock axios
+vi.mock('axios', () => ({
+  default: {
+    create: vi.fn(() => ({
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+      interceptors: {
+        request: { use: vi.fn() },
+        response: { use: vi.fn() }
+      }
+    }))
+  }
+}));
+
+const mockAxiosInstance = {
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
+  interceptors: {
+    request: { use: vi.fn() },
+    response: { use: vi.fn() }
+  }
+};
+
+describe('ADRApiService', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mock axios.create to return our mock instance
+    const mockedAxios = vi.mocked(axios);
+    mockedAxios.create.mockReturnValue(mockAxiosInstance as any);
+    ADRApiService.initialize();
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  describe('upsertADR', () => {
+    it('should create a new ADR when adr_id is not provided', async () => {
+      const projectId = 'project-123';
+      const upsertRequest: UpsertADRRequest = {
+        title: 'Test ADR',
+        status: 'proposed',
+        context: 'Test context',
+        decision: 'Test decision',
+        consequences: 'Test consequences',
+        alternatives: 'Test alternatives',
+        author: 'Test Author',
+        tags: ['test', 'example'],
+        content: 'Test content'
+      };
+
+      const mockResponse = {
+        data: {
+          id: 123,
+          project_id: projectId,
+          title: 'Test ADR',
+          status: 'proposed',
+          context: 'Test context',
+          decision: 'Test decision',
+          consequences: 'Test consequences',
+          alternatives: 'Test alternatives',
+          author: 'Test Author',
+          tags: ['test', 'example'],
+          created_at: '2023-01-01T00:00:00Z',
+          updated_at: '2023-01-01T00:00:00Z'
+        }
+      };
+
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
+      const result = await ADRApiService.upsertADR(projectId, upsertRequest);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/api/v1/projects/project-123/adrs',
+        {
+          title: 'Test ADR',
+          status: 'proposed',
+          context: 'Test context',
+          decision: 'Test decision',
+          consequences: 'Test consequences',
+          alternatives: 'Test alternatives',
+          author: 'Test Author',
+          tags: ['test', 'example'],
+          content: 'Test content'
+        }
+      );
+
+      expect(result.id).toBe('123');
+      expect(result.title).toBe('Test ADR');
+      expect(result.status).toBe('proposed');
+    });
+
+    it('should update an existing ADR when adr_id is provided', async () => {
+      const projectId = 'project-123';
+      const upsertRequest: UpsertADRRequest = {
+        title: 'Updated ADR',
+        status: 'accepted',
+        context: 'Updated context',
+        decision: 'Updated decision',
+        consequences: 'Updated consequences',
+        alternatives: 'Updated alternatives',
+        author: 'Test Author',
+        tags: ['updated', 'example'],
+        content: 'Updated content',
+        adr_id: 123
+      };
+
+      const mockResponse = {
+        data: {
+          id: 123,
+          project_id: projectId,
+          title: 'Updated ADR',
+          status: 'accepted',
+          context: 'Updated context',
+          decision: 'Updated decision',
+          consequences: 'Updated consequences',
+          alternatives: 'Updated alternatives',
+          author: 'Test Author',
+          tags: ['updated', 'example'],
+          created_at: '2023-01-01T00:00:00Z',
+          updated_at: '2023-01-02T00:00:00Z'
+        }
+      };
+
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+
+      const result = await ADRApiService.upsertADR(projectId, upsertRequest);
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/api/v1/projects/project-123/adrs',
+        {
+          title: 'Updated ADR',
+          status: 'accepted',
+          context: 'Updated context',
+          decision: 'Updated decision',
+          consequences: 'Updated consequences',
+          alternatives: 'Updated alternatives',
+          author: 'Test Author',
+          tags: ['updated', 'example'],
+          content: 'Updated content',
+          adr_id: 123
+        }
+      );
+
+      expect(result.id).toBe('123');
+      expect(result.title).toBe('Updated ADR');
+      expect(result.status).toBe('accepted');
+    });
+
+    it('should validate required fields before sending request', async () => {
+      const projectId = 'project-123';
+      const invalidRequest = {
+        title: '',
+        status: 'proposed' as ADRStatus,
+        context: 'Test context',
+        decision: 'Test decision',
+        consequences: 'Test consequences',
+        author: 'Test Author',
+        tags: [],
+        content: 'Test content'
+      };
+
+      await expect(ADRApiService.upsertADR(projectId, invalidRequest)).rejects.toThrow(
+        'Invalid ADR: title must be a non-empty string'
+      );
+
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+
+    it('should handle API errors properly', async () => {
+      const projectId = 'project-123';
+      const upsertRequest: UpsertADRRequest = {
+        title: 'Test ADR',
+        status: 'proposed',
+        context: 'Test context',
+        decision: 'Test decision',
+        consequences: 'Test consequences',
+        author: 'Test Author',
+        tags: [],
+        content: 'Test content'
+      };
+
+      const mockError = {
+        response: {
+          status: 422,
+          data: {
+            detail: [
+              {
+                loc: ['title'],
+                msg: 'Title is required',
+                type: 'value_error'
+              }
+            ]
+          }
+        }
+      };
+
+      mockAxiosInstance.post.mockRejectedValue(mockError);
+
+      await expect(ADRApiService.upsertADR(projectId, upsertRequest)).rejects.toMatchObject({
+        type: 'validation'
+      });
+    });
+  });
+
+  describe('listADRs', () => {
+    it('should list ADRs with pagination support', async () => {
+      const projectId = 'project-123';
+      const mockResponse: ADRListResponse = {
+        success: true,
+        message: 'ADRs retrieved successfully',
+        data: [
+          {
+            id: '1',
+            project_id: projectId,
+            title: 'Test ADR 1',
+            status: 'proposed',
+            context: 'Context 1',
+            decision: 'Decision 1',
+            consequences: 'Consequences 1',
+            author: 'Author 1',
+            created_at: new Date('2023-01-01'),
+            updated_at: new Date('2023-01-01'),
+            tags: ['test'],
+            supersedes: []
+          }
+        ],
+        timestamp: '2023-01-01T00:00:00Z',
+        meta: {
+          page: 1,
+          per_page: 10,
+          total: 1,
+          pages: 1,
+          has_next: false,
+          has_prev: false
+        }
+      };
+
+      mockAxiosInstance.get.mockResolvedValue({ data: mockResponse });
+
+      const result = await ADRApiService.listADRs(projectId, {
+        page: 1,
+        per_page: 10,
+        sort_by: 'created_at',
+        sort_order: 'desc',
+        search: 'test'
+      });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/api/v1/projects/project-123/adrs?page=1&per_page=10&sort_by=created_at&sort_order=desc&search=test'
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(1);
+      expect(result.meta.page).toBe(1);
+      expect(result.meta.total).toBe(1);
+    });
+
+    it('should list ADRs without query parameters', async () => {
+      const projectId = 'project-123';
+      const mockResponse: ADRListResponse = {
+        success: true,
+        message: 'ADRs retrieved successfully',
+        data: [],
+        timestamp: '2023-01-01T00:00:00Z',
+        meta: {
+          page: 1,
+          per_page: 10,
+          total: 0,
+          pages: 0,
+          has_next: false,
+          has_prev: false
+        }
+      };
+
+      mockAxiosInstance.get.mockResolvedValue({ data: mockResponse });
+
+      const result = await ADRApiService.listADRs(projectId);
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/v1/projects/project-123/adrs');
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(0);
+    });
+  });
+});
 
 describe('ADRApiService - Data Mapping', () => {
   describe('mapToADR', () => {
@@ -56,7 +359,7 @@ describe('ADRApiService - Data Mapping', () => {
 
       const result = ADRApiService.mapToADR(apiResponse);
 
-      expect(result.alternatives).toBeUndefined();
+      expect(result.alternatives).toBe('');
       expect(result.tags).toEqual([]);
       expect(result.superseded_by).toBeUndefined();
       expect(result.supersedes).toEqual([]);
@@ -70,7 +373,7 @@ describe('ADRApiService - Data Mapping', () => {
         id: 'test', 
         title: 'Test', 
         status: 'invalid' 
-      })).toThrow('Invalid ADR: status must be proposed, accepted, deprecated, or superseded');
+      })).toThrow('Invalid ADR: status must be proposed, accepted, rejected, deprecated, or superseded');
     });
 
     it('should handle invalid date formats gracefully', () => {
@@ -186,6 +489,32 @@ describe('ADRApiService - Data Mapping', () => {
         context: 'context',
         decision: 'decision'
       })).toThrow('Invalid ADR: consequences must be a string');
+    });
+
+    it('should validate author field', () => {
+      const baseData = {
+        id: 'test',
+        title: 'title',
+        status: 'accepted',
+        context: 'context',
+        decision: 'decision',
+        consequences: 'consequences'
+      };
+
+      expect(() => ADRApiService.mapToADR({
+        ...baseData,
+        author: ''
+      })).toThrow('Invalid ADR: author must be a non-empty string');
+
+      expect(() => ADRApiService.mapToADR({
+        ...baseData,
+        author: '   '
+      })).toThrow('Invalid ADR: author must be a non-empty string');
+
+      expect(() => ADRApiService.mapToADR({
+        ...baseData,
+        author: 123
+      })).toThrow('Invalid ADR: author must be a non-empty string');
     });
   });
 

@@ -764,7 +764,7 @@ async function loadSystemsAndTeamsData() {
     console.log(`Loaded ${teams.length} teams from API`)
   } catch (error: any) {
     console.error('Failed to load teams data:', error)
-    
+
     // Fall back to sample teams data if API fails
     teamsData.value = [
       {
@@ -783,7 +783,7 @@ async function loadSystemsAndTeamsData() {
       }
     ]
     tabState.value.teams.items = teamsData.value
-    
+
     showNotification('error', 'Failed to load teams data. Using sample data.')
   }
 
@@ -1292,7 +1292,12 @@ function handleTabChange(tabId: 'requirements' | 'systems' | 'teams') {
 }
 
 // Requirements event handlers with change tracking
-function handleRequirementUpdate(requirement: RequirementItem) {
+async function handleRequirementUpdate(requirement: RequirementItem) {
+  // Call the actual API service
+  const result = await RequirementsApiService.upsertRequirementItem(
+    props.project.id,
+    requirement
+  )
   const index = requirementItems.value.findIndex(r => r.id === requirement.id)
   if (index !== -1) {
     requirementItems.value[index] = { ...requirement, updated_at: new Date() }
@@ -1374,7 +1379,7 @@ async function handleTeamCreate(team: Omit<TeamInfo, 'id'>) {
     const newTeam = await TeamsApiService.createTeam(props.project.id, team)
     teamsData.value.push(newTeam)
     tabState.value.teams.items = teamsData.value
-    
+
     showNotification('success', `Team "${newTeam.name}" created successfully`)
     console.log('Team created:', newTeam)
   } catch (error: any) {
@@ -1388,13 +1393,13 @@ async function handleTeamUpdate(teamId: string, updates: Partial<TeamInfo>) {
 
   try {
     const updatedTeam = await TeamsApiService.updateTeam(props.project.id, teamId, updates)
-    
+
     const index = teamsData.value.findIndex(t => t.id === teamId)
     if (index !== -1) {
       teamsData.value[index] = updatedTeam
       tabState.value.teams.items = teamsData.value
     }
-    
+
     showNotification('success', `Team "${updatedTeam.name}" updated successfully`)
     console.log('Team updated:', updatedTeam)
   } catch (error: any) {
@@ -1408,11 +1413,11 @@ async function handleTeamDelete(teamId: string) {
 
   try {
     await TeamsApiService.deleteTeam(props.project.id, teamId)
-    
+
     const deletedTeam = teamsData.value.find(t => t.id === teamId)
     teamsData.value = teamsData.value.filter(t => t.id !== teamId)
     tabState.value.teams.items = teamsData.value
-    
+
     showNotification('success', `Team "${deletedTeam?.name || 'Unknown'}" deleted successfully`)
     console.log('Team deleted:', teamId)
   } catch (error: any) {

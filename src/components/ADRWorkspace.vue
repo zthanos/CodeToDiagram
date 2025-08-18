@@ -191,15 +191,15 @@ const loadADRs = async () => {
   
   try {
     const loadedADRs = await ADRApiService.listADRs(props.project.id)
-    workspaceState.value.adrs = loadedADRs
+    workspaceState.value.adrs = loadedADRs.data
     
     // Load stats
-    try {
-      const stats = await ADRApiService.getADRStats(props.project.id)
-      // Stats are computed from the loaded ADRs, but we could use API stats if needed
-    } catch (statsError) {
-      console.warn('Failed to load ADR stats:', statsError)
-    }
+    // try {
+    //   const stats = await ADRApiService.getADRStats(props.project.id)
+    //   // Stats are computed from the loaded ADRs, but we could use API stats if needed
+    // } catch (statsError) {
+    //   console.warn('Failed to load ADR stats:', statsError)
+    // }
     
   } catch (error) {
     console.error('Failed to load ADRs:', error)

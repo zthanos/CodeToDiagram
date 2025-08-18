@@ -4,7 +4,7 @@
  */
 
 // ADR Status enumeration
-export type ADRStatus = 'proposed' | 'accepted' | 'deprecated' | 'superseded';
+export type ADRStatus = 'proposed' | 'accepted' | 'rejected' | 'deprecated' | 'superseded';
 
 // ADR interface
 export interface ADR {
@@ -61,6 +61,36 @@ export interface UpdateADRRequest {
   tags?: string[];
   superseded_by?: string;
   supersedes?: string[];
+}
+
+// Upsert request interface for unified create/update operations
+export interface UpsertADRRequest {
+  title: string;
+  status: ADRStatus;
+  context: string;
+  decision: string;
+  consequences: string;
+  alternatives?: string;
+  author: string;
+  tags: string[];
+  content: string;
+  adr_id?: number; // Optional - presence determines create vs update
+}
+
+// Paginated ADR list response interface
+export interface ADRListResponse {
+  success: boolean;
+  message: string;
+  data: ADR[];
+  timestamp: string;
+  meta: {
+    page: number;
+    per_page: number;
+    total: number;
+    pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
 }
 
 // UI-optimized ADR with editing state

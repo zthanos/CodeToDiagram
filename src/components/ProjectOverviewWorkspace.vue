@@ -1,28 +1,18 @@
 <template>
-  <WorkspaceErrorBoundary
-    workspace-name="Project Overview"
-    component-name="ProjectOverviewWorkspace"
-    :show-recovery-options="true"
-    :max-retries="3"
-    @retry="handleErrorRetry"
-    @reset="handleWorkspaceReset"
-    @clear-data="handleClearData"
-  >
+  <WorkspaceErrorBoundary workspace-name="Project Overview" component-name="ProjectOverviewWorkspace"
+    :show-recovery-options="true" :max-retries="3" @retry="handleErrorRetry" @reset="handleWorkspaceReset"
+    @clear-data="handleClearData">
     <div class="project-overview-workspace">
       <!-- Header -->
       <div class="workspace-header">
         <h2 class="workspace-title">Project Overview</h2>
         <div class="header-actions">
-          <button 
-            class="refresh-btn" 
-            @click="refreshAllData" 
-            :disabled="errorHandling.isLoading.value"
-            :class="{ 'loading': errorHandling.isLoading.value }"
-          >
+          <button class="refresh-btn" @click="refreshAllData" :disabled="errorHandling.isLoading.value"
+            :class="{ 'loading': errorHandling.isLoading.value }">
             <span v-if="errorHandling.isLoading.value" class="spinner"></span>
             {{ errorHandling.isLoading.value ? 'Refreshing...' : '🔄 Refresh' }}
           </button>
-          
+
           <!-- Last updated indicator -->
           <div v-if="lastUpdated" class="last-updated">
             Last updated: {{ formatTime(lastUpdated) }}
@@ -31,333 +21,307 @@
       </div>
 
       <!-- Loading Overlay -->
-      <WorkspaceLoadingOverlay
-        :show="errorHandling.isLoading.value && !hasAnyData"
-        type="spinner"
-        size="large"
-        message="Loading Project Overview"
-        subtitle="Fetching project data from all sources..."
-        :details="errorHandling.loadingState.value.loadingDetails"
-        :show-details="true"
-        :timeout="30000"
-        @timeout="handleLoadingTimeout"
-      />
+      <WorkspaceLoadingOverlay :show="errorHandling.isLoading.value && !hasAnyData" type="spinner" size="large"
+        message="Loading Project Overview" subtitle="Fetching project data from all sources..."
+        :details="errorHandling.loadingState.value.loadingDetails" :show-details="true" :timeout="30000"
+        @timeout="handleLoadingTimeout" />
 
       <!-- Main Content -->
       <div class="main-content">
         <!-- Skeleton Loading State -->
-        <WorkspaceSkeletonLoader
-          v-if="errorHandling.isLoading.value && !hasAnyData"
-          type="project-overview"
-        />
+        <WorkspaceSkeletonLoader v-if="errorHandling.isLoading.value && !hasAnyData" type="project-overview" />
 
         <!-- Dashboard Content -->
         <div v-else class="dashboard-content">
-        <!-- Status Cards Grid -->
-        <div class="status-cards-grid">
-          <!-- Solution Outline Card -->
-          <div class="status-card solution-outline-card">
-            <div class="card-header">
-              <h3 class="card-title">🎯 Solution Outline</h3>
-              <div class="card-status" :class="solutionOutlineStatusClass">
-                {{ solutionOutlineStatusText }}
-              </div>
-            </div>
-            <div class="card-content">
-              <div v-if="projectOutlineLoading" class="card-loading">
-                <div class="loading-spinner small"></div>
-                <span>Loading outline...</span>
-              </div>
-              <div v-else-if="projectOutlineError" class="card-error">
-                <span class="error-icon">⚠️</span>
-                <span class="error-text">{{ projectOutlineError }}</span>
-                <button class="retry-btn small" @click="loadProjectOutline">Retry</button>
-              </div>
-              <div v-else-if="projectOutline" class="outline-info">
-                <div class="version-info">
-                  <span class="version-label">Working Version:</span>
-                  <span class="version-number">v{{ projectOutline.working_version }}</span>
-                </div>
-                <div class="status-info">
-                  <span class="status-label">Status:</span>
-                  <span class="status-value" :class="projectOutline.status">
-                    {{ capitalizeFirst(projectOutline.status) }}
-                  </span>
-                </div>
-                <div class="last-updated">
-                  Updated: {{ formatTime(new Date(projectOutline.updated_at)) }}
+          <!-- Status Cards Grid -->
+          <div class="status-cards-grid">
+            <!-- Solution Outline Card -->
+            <div class="status-card solution-outline-card">
+              <div class="card-header">
+                <h3 class="card-title">🎯 Solution Outline</h3>
+                <div class="card-status" :class="solutionOutlineStatusClass">
+                  {{ solutionOutlineStatusText }}
                 </div>
               </div>
-              <div v-else class="no-data">
-                <span class="no-data-icon">📝</span>
-                <span class="no-data-text">No solution outline available</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Requirements Card -->
-          <div class="status-card requirements-card">
-            <div class="card-header">
-              <h3 class="card-title">📋 Requirements</h3>
-              <div class="card-status" :class="requirementsStatusClass">
-                {{ requirementsStatusText }}
-              </div>
-            </div>
-            <div class="card-content">
-              <div v-if="requirementsLoading" class="card-loading">
-                <div class="loading-spinner small"></div>
-                <span>Loading requirements...</span>
-              </div>
-              <div v-else-if="requirementsError" class="card-error">
-                <span class="error-icon">⚠️</span>
-                <span class="error-text">{{ requirementsError }}</span>
-                <button class="retry-btn small" @click="loadRequirementsSummary">Retry</button>
-              </div>
-              <div v-else-if="requirementsSummary" class="requirements-info">
-                <div class="summary-stats">
-                  <div class="stat-item">
-                    <span class="stat-value">{{ requirementsSummary.total || 0 }}</span>
-                    <span class="stat-label">Total</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ requirementsSummary.accepted || 0 }}</span>
-                    <span class="stat-label">Accepted</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ requirementsSummary.pending || 0 }}</span>
-                    <span class="stat-label">Pending</span>
-                  </div>
+              <div class="card-content">
+                <div v-if="projectOutlineLoading" class="card-loading">
+                  <div class="loading-spinner small"></div>
+                  <span>Loading outline...</span>
                 </div>
-                <div class="document-info" v-if="requirementsDocument">
+                <div v-else-if="projectOutlineError" class="card-error">
+                  <span class="error-icon">⚠️</span>
+                  <span class="error-text">{{ projectOutlineError }}</span>
+                  <button class="retry-btn small" @click="loadProjectOutline">Retry</button>
+                </div>
+                <div v-else-if="projectOutline" class="outline-info">
                   <div class="version-info">
-                    <span class="version-label">Document Version:</span>
-                    <span class="version-number">v{{ requirementsDocument.version }}</span>
+                    <span class="version-label">Working Version:</span>
+                    <span class="version-number">v{{ projectOutline.working_version }}</span>
                   </div>
                   <div class="status-info">
                     <span class="status-label">Status:</span>
-                    <span class="status-value" :class="requirementsDocument.status">
-                      {{ capitalizeFirst(requirementsDocument.status) }}
+                    <span class="status-value" :class="projectOutline.status">
+                      {{ capitalizeFirst(projectOutline.status) }}
                     </span>
                   </div>
+                  <div class="last-updated">
+                    Updated: {{ formatTime(new Date(projectOutline.updated_at)) }}
+                  </div>
+                </div>
+                <div v-else class="no-data">
+                  <span class="no-data-icon">📝</span>
+                  <span class="no-data-text">No solution outline available</span>
                 </div>
               </div>
-              <div v-else class="no-data">
-                <span class="no-data-icon">📋</span>
-                <span class="no-data-text">No requirements data available</span>
-              </div>
             </div>
-          </div>
 
-          <!-- Teams Card -->
-          <div class="status-card teams-card">
-            <div class="card-header">
-              <h3 class="card-title">👥 Teams</h3>
-              <div class="card-status" :class="teamsStatusClass">
-                {{ teamsStatusText }}
-              </div>
-            </div>
-            <div class="card-content">
-              <div v-if="teamsLoading" class="card-loading">
-                <div class="loading-spinner small"></div>
-                <span>Loading teams...</span>
-              </div>
-              <div v-else-if="teamsError" class="card-error">
-                <span class="error-icon">⚠️</span>
-                <span class="error-text">{{ teamsError }}</span>
-                <button class="retry-btn small" @click="loadTeamsData">Retry</button>
-              </div>
-              <div v-else-if="teamsData.length > 0" class="teams-info">
-                <div class="teams-summary">
-                  <div class="stat-item">
-                    <span class="stat-value">{{ teamsData.length }}</span>
-                    <span class="stat-label">Teams</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ totalTeamMembers }}</span>
-                    <span class="stat-label">Members</span>
-                  </div>
-                </div>
-                <div class="teams-list">
-                  <div 
-                    v-for="team in teamsData.slice(0, 3)" 
-                    :key="team.id" 
-                    class="team-item"
-                  >
-                    <span class="team-name">{{ team.name }}</span>
-                    <span class="team-role">{{ team.role }}</span>
-                  </div>
-                  <div v-if="teamsData.length > 3" class="more-teams">
-                    +{{ teamsData.length - 3 }} more teams
-                  </div>
+            <!-- Requirements Card -->
+            <div class="status-card requirements-card">
+              <div class="card-header">
+                <h3 class="card-title">📋 Requirements</h3>
+                <div class="card-status" :class="requirementsStatusClass">
+                  {{ requirementsStatusText }}
                 </div>
               </div>
-              <div v-else class="no-data">
-                <span class="no-data-icon">👥</span>
-                <span class="no-data-text">No teams configured</span>
+              <div class="card-content">
+                <div v-if="requirementsLoading" class="card-loading">
+                  <div class="loading-spinner small"></div>
+                  <span>Loading requirements...</span>
+                </div>
+                <div v-else-if="requirementsError" class="card-error">
+                  <span class="error-icon">⚠️</span>
+                  <span class="error-text">{{ requirementsError }}</span>
+                  <button class="retry-btn small" @click="loadRequirementsSummary">Retry</button>
+                </div>
+                <div v-else-if="requirementsSummary" class="requirements-info">
+                  <div class="summary-stats">
+                    <div class="stat-item">
+                      <span class="stat-value">{{ requirementsSummary.total || 0 }}</span>
+                      <span class="stat-label">Total</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-value">{{ requirementsSummary.accepted || 0 }}</span>
+                      <span class="stat-label">Accepted</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-value">{{ requirementsSummary.pending || 0 }}</span>
+                      <span class="stat-label">Pending</span>
+                    </div>
+                  </div>
+                  <div class="document-info" v-if="requirementsDocument">
+                    <div class="version-info">
+                      <span class="version-label">Document Version:</span>
+                      <span class="version-number">v{{ requirementsDocument.version }}</span>
+                    </div>
+                    <div class="status-info">
+                      <span class="status-label">Status:</span>
+                      <span class="status-value" :class="requirementsDocument.status">
+                        {{ capitalizeFirst(requirementsDocument.status) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="no-data">
+                  <span class="no-data-icon">📋</span>
+                  <span class="no-data-text">No requirements data available</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Systems Card -->
-          <div class="status-card systems-card">
-            <div class="card-header">
-              <h3 class="card-title">🏗️ Systems</h3>
-              <div class="card-status" :class="systemsStatusClass">
-                {{ systemsStatusText }}
-              </div>
-            </div>
-            <div class="card-content">
-              <div v-if="systemsLoading" class="card-loading">
-                <div class="loading-spinner small"></div>
-                <span>Loading systems...</span>
-              </div>
-              <div v-else-if="systemsError" class="card-error">
-                <span class="error-icon">⚠️</span>
-                <span class="error-text">{{ systemsError }}</span>
-                <button class="retry-btn small" @click="loadSystemsData">Retry</button>
-              </div>
-              <div v-else-if="systemsData.length > 0" class="systems-info">
-                <div class="systems-summary">
-                  <div class="stat-item">
-                    <span class="stat-value">{{ systemsData.length }}</span>
-                    <span class="stat-label">Systems</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ internalSystemsCount }}</span>
-                    <span class="stat-label">Internal</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ externalSystemsCount }}</span>
-                    <span class="stat-label">External</span>
-                  </div>
-                </div>
-                <div class="systems-list">
-                  <div 
-                    v-for="system in systemsData.slice(0, 3)" 
-                    :key="system.id" 
-                    class="system-item"
-                  >
-                    <span class="system-name">{{ system.name }}</span>
-                    <span class="system-type" :class="system.type">{{ system.type }}</span>
-                  </div>
-                  <div v-if="systemsData.length > 3" class="more-systems">
-                    +{{ systemsData.length - 3 }} more systems
-                  </div>
+            <!-- Teams Card -->
+            <div class="status-card teams-card">
+              <div class="card-header">
+                <h3 class="card-title">👥 Teams</h3>
+                <div class="card-status" :class="teamsStatusClass">
+                  {{ teamsStatusText }}
                 </div>
               </div>
-              <div v-else class="no-data">
-                <span class="no-data-icon">🏗️</span>
-                <span class="no-data-text">No systems defined</span>
+              <div class="card-content">
+                <div v-if="teamsLoading" class="card-loading">
+                  <div class="loading-spinner small"></div>
+                  <span>Loading teams...</span>
+                </div>
+                <div v-else-if="teamsError" class="card-error">
+                  <span class="error-icon">⚠️</span>
+                  <span class="error-text">{{ teamsError }}</span>
+                  <button class="retry-btn small" @click="loadTeamsData">Retry</button>
+                </div>
+                <div v-else-if="teamsData.length > 0" class="teams-info">
+                  <div class="teams-summary">
+                    <div class="stat-item">
+                      <span class="stat-value">{{ teamsData.length }}</span>
+                      <span class="stat-label">Teams</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-value">{{ totalTeamMembers }}</span>
+                      <span class="stat-label">Members</span>
+                    </div>
+                  </div>
+                  <div class="teams-list">
+                    <div v-for="team in teamsData.slice(0, 3)" :key="team.id" class="team-item">
+                      <span class="team-name">{{ team.name }}</span>
+                      <span class="team-role">{{ team.role }}</span>
+                    </div>
+                    <div v-if="teamsData.length > 3" class="more-teams">
+                      +{{ teamsData.length - 3 }} more teams
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="no-data">
+                  <span class="no-data-icon">👥</span>
+                  <span class="no-data-text">No teams configured</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- ADRs Card -->
-          <div class="status-card adrs-card">
-            <div class="card-header">
-              <h3 class="card-title">📚 ADRs</h3>
-              <div class="card-status" :class="adrsStatusClass">
-                {{ adrsStatusText }}
-              </div>
-            </div>
-            <div class="card-content">
-              <div v-if="adrsLoading" class="card-loading">
-                <div class="loading-spinner small"></div>
-                <span>Loading ADRs...</span>
-              </div>
-              <div v-else-if="adrsError" class="card-error">
-                <span class="error-icon">⚠️</span>
-                <span class="error-text">{{ adrsError }}</span>
-                <button class="retry-btn small" @click="loadADRsData">Retry</button>
-              </div>
-              <div v-else-if="adrsData.length > 0" class="adrs-info">
-                <div class="adrs-summary">
-                  <div class="stat-item">
-                    <span class="stat-value">{{ adrsData.length }}</span>
-                    <span class="stat-label">Total</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ acceptedADRsCount }}</span>
-                    <span class="stat-label">Accepted</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ proposedADRsCount }}</span>
-                    <span class="stat-label">Proposed</span>
-                  </div>
-                </div>
-                <div class="adrs-list">
-                  <div 
-                    v-for="adr in adrsData.slice(0, 3)" 
-                    :key="adr.id" 
-                    class="adr-item"
-                  >
-                    <span class="adr-title">{{ adr.title }}</span>
-                    <span class="adr-status" :class="adr.status">{{ adr.status }}</span>
-                  </div>
-                  <div v-if="adrsData.length > 3" class="more-adrs">
-                    +{{ adrsData.length - 3 }} more ADRs
-                  </div>
+            <!-- Systems Card -->
+            <div class="status-card systems-card">
+              <div class="card-header">
+                <h3 class="card-title">🏗️ Systems</h3>
+                <div class="card-status" :class="systemsStatusClass">
+                  {{ systemsStatusText }}
                 </div>
               </div>
-              <div v-else class="no-data">
-                <span class="no-data-icon">📚</span>
-                <span class="no-data-text">No ADRs created</span>
+              <div class="card-content">
+                <div v-if="systemsLoading" class="card-loading">
+                  <div class="loading-spinner small"></div>
+                  <span>Loading systems...</span>
+                </div>
+                <div v-else-if="systemsError" class="card-error">
+                  <span class="error-icon">⚠️</span>
+                  <span class="error-text">{{ systemsError }}</span>
+                  <button class="retry-btn small" @click="loadSystemsData">Retry</button>
+                </div>
+                <div v-else-if="systemsData.length > 0" class="systems-info">
+                  <div class="systems-summary">
+                    <div class="stat-item">
+                      <span class="stat-value">{{ systemsData.length }}</span>
+                      <span class="stat-label">Systems</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-value">{{ internalSystemsCount }}</span>
+                      <span class="stat-label">Internal</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-value">{{ externalSystemsCount }}</span>
+                      <span class="stat-label">External</span>
+                    </div>
+                  </div>
+                  <div class="systems-list">
+                    <div v-for="system in systemsData.slice(0, 3)" :key="system.id" class="system-item">
+                      <span class="system-name">{{ system.name }}</span>
+                      <span class="system-type" :class="system.type">{{ system.type }}</span>
+                    </div>
+                    <div v-if="systemsData.length > 3" class="more-systems">
+                      +{{ systemsData.length - 3 }} more systems
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="no-data">
+                  <span class="no-data-icon">🏗️</span>
+                  <span class="no-data-text">No systems defined</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Notes Card -->
-          <div class="status-card notes-card">
-            <div class="card-header">
-              <h3 class="card-title">📝 Notes</h3>
-              <div class="card-status" :class="notesStatusClass">
-                {{ notesStatusText }}
+            <!-- ADRs Card -->
+            <div class="status-card adrs-card">
+              <div class="card-header">
+                <h3 class="card-title">📚 ADRs</h3>
+                <div class="card-status" :class="adrsStatusClass">
+                  {{ adrsStatusText }}
+                </div>
+              </div>
+              <div class="card-content">
+                <div v-if="adrsLoading" class="card-loading">
+                  <div class="loading-spinner small"></div>
+                  <span>Loading ADRs...</span>
+                </div>
+                <div v-else-if="adrsError" class="card-error">
+                  <span class="error-icon">⚠️</span>
+                  <span class="error-text">{{ adrsError }}</span>
+                  <button class="retry-btn small" @click="loadADRsData">Retry</button>
+                </div>
+                <div v-else-if="adrsData.length > 0" class="adrs-info">
+                  <div class="adrs-summary">
+                    <div class="stat-item">
+                      <span class="stat-value">{{ adrsData.length }}</span>
+                      <span class="stat-label">Total</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-value">{{ acceptedADRsCount }}</span>
+                      <span class="stat-label">Accepted</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-value">{{ proposedADRsCount }}</span>
+                      <span class="stat-label">Proposed</span>
+                    </div>
+                  </div>
+                  <div class="adrs-list">
+                    <div v-for="adr in adrsData.slice(0, 3)" :key="adr.id" class="adr-item">
+                      <span class="adr-title">{{ adr.title }}</span>
+                      <span class="adr-status" :class="adr.status">{{ adr.status }}</span>
+                    </div>
+                    <div v-if="adrsData.length > 3" class="more-adrs">
+                      +{{ adrsData.length - 3 }} more ADRs
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="no-data">
+                  <span class="no-data-icon">📚</span>
+                  <span class="no-data-text">No ADRs created</span>
+                </div>
               </div>
             </div>
-            <div class="card-content">
-              <div v-if="notesLoading" class="card-loading">
-                <div class="loading-spinner small"></div>
-                <span>Loading notes...</span>
-              </div>
-              <div v-else-if="notesError" class="card-error">
-                <span class="error-icon">⚠️</span>
-                <span class="error-text">{{ notesError }}</span>
-                <button class="retry-btn small" @click="loadNotesData">Retry</button>
-              </div>
-              <div v-else-if="notesData.length > 0" class="notes-info">
-                <div class="notes-summary">
-                  <div class="stat-item">
-                    <span class="stat-value">{{ notesData.length }}</span>
-                    <span class="stat-label">Notes</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ recentNotesCount }}</span>
-                    <span class="stat-label">Recent</span>
-                  </div>
-                </div>
-                <div class="notes-list">
-                  <div 
-                    v-for="note in notesData.slice(0, 3)" 
-                    :key="note.id" 
-                    class="note-item"
-                  >
-                    <span class="note-title">{{ note.title }}</span>
-                    <span class="note-date">{{ formatTime(new Date(note.updated_at)) }}</span>
-                  </div>
-                  <div v-if="notesData.length > 3" class="more-notes">
-                    +{{ notesData.length - 3 }} more notes
-                  </div>
+
+            <!-- Notes Card -->
+            <div class="status-card notes-card">
+              <div class="card-header">
+                <h3 class="card-title">📝 Notes</h3>
+                <div class="card-status" :class="notesStatusClass">
+                  {{ notesStatusText }}
                 </div>
               </div>
-              <div v-else class="no-data">
-                <span class="no-data-icon">📝</span>
-                <span class="no-data-text">No notes available</span>
+              <div class="card-content">
+                <div v-if="notesLoading" class="card-loading">
+                  <div class="loading-spinner small"></div>
+                  <span>Loading notes...</span>
+                </div>
+                <div v-else-if="notesError" class="card-error">
+                  <span class="error-icon">⚠️</span>
+                  <span class="error-text">{{ notesError }}</span>
+                  <button class="retry-btn small" @click="loadNotesData">Retry</button>
+                </div>
+                <div v-else-if="notesData.length > 0" class="notes-info">
+                  <div class="notes-summary">
+                    <div class="stat-item">
+                      <span class="stat-value">{{ notesData.length }}</span>
+                      <span class="stat-label">Notes</span>
+                    </div>
+                    <div class="stat-item">
+                      <span class="stat-value">{{ recentNotesCount }}</span>
+                      <span class="stat-label">Recent</span>
+                    </div>
+                  </div>
+                  <div class="notes-list">
+                    <div v-for="note in notesData.slice(0, 3)" :key="note.id" class="note-item">
+                      <span class="note-title">{{ note.title }}</span>
+                      <span class="note-date">{{ formatTime(new Date(note.updated_at)) }}</span>
+                    </div>
+                    <div v-if="notesData.length > 3" class="more-notes">
+                      +{{ notesData.length - 3 }} more notes
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="no-data">
+                  <span class="no-data-icon">📝</span>
+                  <span class="no-data-text">No notes available</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
       <!-- Error Notification -->
       <div v-if="notification" class="notification" :class="notification.type">
@@ -375,6 +339,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ProjectOutlineApiService } from '../services/ProjectOutlineApiService'
 import { RequirementsApiService } from '../services/RequirementsApiService'
+import { ADRApiService } from '@/services/ADRApiService'
 import WorkspaceErrorBoundary from './WorkspaceErrorBoundary.vue'
 import WorkspaceLoadingOverlay from './WorkspaceLoadingOverlay.vue'
 import WorkspaceSkeletonLoader from './WorkspaceSkeletonLoader.vue'
@@ -456,12 +421,12 @@ const refreshInterval = 300000 // 5 minutes
 
 // Computed properties
 const hasAnyData = computed(() => {
-  return projectOutline.value || 
-         requirementsDocument.value || 
-         teamsData.value.length > 0 || 
-         systemsData.value.length > 0 || 
-         adrsData.value.length > 0 || 
-         notesData.value.length > 0
+  return projectOutline.value ||
+    requirementsDocument.value ||
+    teamsData.value.length > 0 ||
+    systemsData.value.length > 0 ||
+    adrsData.value.length > 0 ||
+    notesData.value.length > 0
 })
 
 // Solution Outline computed properties
@@ -676,7 +641,7 @@ async function loadRequirementsSummary() {
   } catch (error: any) {
     console.error('Failed to load requirements data:', error)
     requirementsError.value = error.message || 'Failed to load requirements data'
-    
+
     if (!isLoading.value) {
       showNotification('error', 'Failed to load requirements data')
     }
@@ -693,7 +658,7 @@ async function loadTeamsData() {
     // For now, use sample data since teams API service doesn't exist yet
     // This will be replaced with actual API call when teams service is implemented
     await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
-    
+
     teamsData.value = [
       {
         id: '1',
@@ -722,7 +687,7 @@ async function loadTeamsData() {
   } catch (error: any) {
     console.error('Failed to load teams data:', error)
     teamsError.value = error.message || 'Failed to load teams data'
-    
+
     if (!isLoading.value) {
       showNotification('error', 'Failed to load teams data')
     }
@@ -739,7 +704,7 @@ async function loadSystemsData() {
     // For now, use sample data since systems API service doesn't exist yet
     // This will be replaced with actual API call when systems service is implemented
     await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
-    
+
     systemsData.value = [
       {
         id: '1',
@@ -775,7 +740,7 @@ async function loadSystemsData() {
   } catch (error: any) {
     console.error('Failed to load systems data:', error)
     systemsError.value = error.message || 'Failed to load systems data'
-    
+
     if (!isLoading.value) {
       showNotification('error', 'Failed to load systems data')
     }
@@ -792,36 +757,48 @@ async function loadADRsData() {
     // For now, use sample data since ADR API service doesn't exist yet
     // This will be replaced with actual API call when ADR service is implemented
     await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
-    
-    adrsData.value = [
-      {
-        id: '1',
-        title: 'Use React for Frontend Framework',
-        status: 'accepted',
-        created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        author: 'Tech Lead'
-      },
-      {
-        id: '2',
-        title: 'Adopt Microservices Architecture',
-        status: 'proposed',
-        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        author: 'Solution Architect'
-      },
-      {
-        id: '3',
-        title: 'Use PostgreSQL as Primary Database',
-        status: 'accepted',
-        created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-        author: 'Database Architect'
-      }
-    ]
+    const adrs = await ADRApiService.listADRs(props.project.id)
+
+
+    adrsData.value = adrs.data.map(r => ({
+      id: String(r.id),
+      title: r.title,
+      status: (r.status ?? '').toLowerCase(),
+      // prefer updated_at for recency, fall back to created_at
+      created_at: r.updated_at || r.created_at,
+      author: r.author ?? '—'
+    }))
+
+
+    // adrsData.value = [
+    //   {
+    //     id: '1',
+    //     title: 'Use React for Frontend Framework',
+    //     status: 'accepted',
+    //     created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    //     author: 'Tech Lead'
+    //   },
+    //   {
+    //     id: '2',
+    //     title: 'Adopt Microservices Architecture',
+    //     status: 'proposed',
+    //     created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    //     author: 'Solution Architect'
+    //   },
+    //   {
+    //     id: '3',
+    //     title: 'Use PostgreSQL as Primary Database',
+    //     status: 'accepted',
+    //     created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    //     author: 'Database Architect'
+    //   }
+    // ]
 
     console.log('ADRs data loaded:', adrsData.value)
   } catch (error: any) {
     console.error('Failed to load ADRs data:', error)
     adrsError.value = error.message || 'Failed to load ADRs data'
-    
+
     if (!isLoading.value) {
       showNotification('error', 'Failed to load ADRs data')
     }
@@ -838,7 +815,7 @@ async function loadNotesData() {
     // For now, use sample data since notes API service doesn't exist yet
     // This will be replaced with actual API call when notes service is implemented
     await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
-    
+
     notesData.value = [
       {
         id: '1',
@@ -867,7 +844,7 @@ async function loadNotesData() {
   } catch (error: any) {
     console.error('Failed to load notes data:', error)
     notesError.value = error.message || 'Failed to load notes data'
-    
+
     if (!isLoading.value) {
       showNotification('error', 'Failed to load notes data')
     }
@@ -886,10 +863,10 @@ async function retryLoadData() {
     showNotification('error', 'Maximum retry attempts reached. Please refresh the page.')
     return
   }
-  
+
   retryCount.value++
   console.log(`Retrying data load (attempt ${retryCount.value}/${maxRetries})`)
-  
+
   await loadAllData()
 }
 
@@ -910,7 +887,7 @@ function cleanupAutoRefresh() {
 
 function showNotification(type: 'success' | 'error', message: string) {
   notification.value = { type, message }
-  
+
   // Auto-hide success notifications after 3 seconds
   if (type === 'success') {
     setTimeout(() => {
@@ -936,12 +913,14 @@ function formatTime(date: Date): string {
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
-  
+
   return date.toLocaleDateString()
 }
 
 function capitalizeFirst(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1)
+  if (str != undefined)
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  return ""
 }
 
 // Error handling methods
@@ -1087,8 +1066,13 @@ function handleLoadingTimeout() {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-content {

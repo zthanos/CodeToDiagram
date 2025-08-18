@@ -9,8 +9,8 @@ import {
   ADR,
   CreateADRRequest,
   UpdateADRRequest,
-  ADRErrorType,
-  ADRError
+  UpsertADRRequest,
+  ADRListResponse
 } from '../types/adr';
 import { apiConfig, getVersionedPath } from '../config/api';
 import { ApiErrorInfo, ApiErrorType } from './ProjectApiService';
@@ -253,15 +253,56 @@ export class ADRApiService {
   }
 
   /**
-   * List all ADRs for a project
-   * Requirements: 9.1, 9.2
+   * List all ADRs for a project with pagination support
+   * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6
    */
-  public static async listADRs(projectId: string): Promise<ADR[]> {
+  public static async listADRs(
+    projectId: string,
+    options?: {
+      page?: number;
+      per_page?: number;
+      sort_by?: string;
+      sort_order?: 'asc' | 'desc';
+      search?: string;
+    }
+  ): Promise<ADRListResponse> {
     try {
-      const response = await apiClient.get<ADR[]>(
-        getVersionedPath(`projects/${projectId}/adrs`)
-      );
-      return response.data.map(adr => this.mapToADR(adr));
+      const params = new URLSearchParams();
+      
+      if (options?.page) {
+        params.append('page', options.page.toString());
+      }
+      
+      if (options?.per_page) {
+        params.append('per_page', options.per_page.toString());
+      }
+      
+      if (options?.sort_by) {
+        params.append('sort_by', options.sort_by);
+      }
+      
+      if (options?.sort_order) {
+        params.append('sort_order', options.sort_order);
+      }
+      
+      if (options?.search) {
+        params.append('search', options.search);
+      }
+
+      const queryString = params.toString();
+      const url = queryString 
+        ? `${getVersionedPath(`projects/${projectId}/adrs`)}?${queryString}`
+        : getVersionedPath(`projects/${projectId}/adrs`);
+
+      const response = await apiClient.get<ADRListResponse>(url);
+      
+      // Map the ADR data in the response
+      const mappedData = response.data.data.map(adr => this.mapToADR(adr));
+      
+      return {
+        ...response.data,
+        data: mappedData
+      };
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }
@@ -283,26 +324,32 @@ export class ADRApiService {
   }
 
   /**
-   * Create a new ADR
-   * Requirements: 9.2, 9.3
+   * Create or update an ADR using upsert functionality
+   * Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 5.1, 5.2, 5.3, 5.4, 5.5
    */
-  public static async createADR(projectId: string, adr: CreateADRRequest): Promise<ADR> {
+  public static async upsertADR(projectId: string, adr: UpsertADRRequest): Promise<ADR> {
     try {
+      // Validate required fields before sending request
+      this.validateUpsertADRRequest(adr);
+
+      const requestPayload = {
+        title: adr.title,
+        status: adr.status,
+        context: adr.context,
+        decision: adr.decision,
+        consequences: adr.consequences,
+        alternatives: adr.alternatives || '',
+        author: adr.author,
+        tags: adr.tags,
+        content: adr.content,
+        ...(adr.adr_id && { id: adr.adr_id }) // Include adr_id only if provided (for updates)
+      };
+
       const response = await apiClient.post<ADR>(
         getVersionedPath(`projects/${projectId}/adrs`),
-        {
-          title: adr.title,
-          status: adr.status || 'proposed',
-          context: adr.context,
-          decision: adr.decision,
-          consequences: adr.consequences,
-          alternatives: adr.alternatives,
-          author: adr.author,
-          tags: adr.tags || [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
+        requestPayload
       );
+      
       return this.mapToADR(response.data);
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
@@ -310,22 +357,49 @@ export class ADRApiService {
   }
 
   /**
-   * Update an existing ADR
+   * Create a new ADR (legacy method - use upsertADR instead)
+   * @deprecated Use upsertADR instead
+   * Requirements: 9.2, 9.3
+   */
+  public static async createADR(projectId: string, adr: CreateADRRequest): Promise<ADR> {
+    const upsertRequest: UpsertADRRequest = {
+      title: adr.title,
+      status: adr.status || 'proposed',
+      context: adr.context,
+      decision: adr.decision,
+      consequences: adr.consequences,
+      alternatives: adr.alternatives,
+      author: adr.author,
+      tags: adr.tags || [],
+      content: `${adr.context}\n\n${adr.decision}\n\n${adr.consequences}${adr.alternatives ? '\n\n' + adr.alternatives : ''}`
+    };
+    
+    return this.upsertADR(projectId, upsertRequest);
+  }
+
+  /**
+   * Update an existing ADR (legacy method - use upsertADR instead)
+   * @deprecated Use upsertADR instead
    * Requirements: 9.3, 9.4
    */
   public static async updateADR(adrId: string, updates: UpdateADRRequest): Promise<ADR> {
-    try {
-      const response = await apiClient.put<ADR>(
-        getVersionedPath(`adrs/${adrId}`),
-        {
-          ...updates,
-          updated_at: new Date().toISOString()
-        }
-      );
-      return this.mapToADR(response.data);
-    } catch (error) {
-      throw this.handleApiError(error as AxiosError);
-    }
+    // For legacy support, we need to get the current ADR first to build the complete upsert request
+    const currentADR = await this.getADR(adrId);
+    
+    const upsertRequest: UpsertADRRequest = {
+      title: updates.title || currentADR.title,
+      status: updates.status || currentADR.status,
+      context: updates.context || currentADR.context,
+      decision: updates.decision || currentADR.decision,
+      consequences: updates.consequences || currentADR.consequences,
+      alternatives: updates.alternatives !== undefined ? updates.alternatives : currentADR.alternatives,
+      author: currentADR.author,
+      tags: updates.tags || currentADR.tags,
+      content: `${updates.context || currentADR.context}\n\n${updates.decision || currentADR.decision}\n\n${updates.consequences || currentADR.consequences}${(updates.alternatives !== undefined ? updates.alternatives : currentADR.alternatives) ? '\n\n' + (updates.alternatives !== undefined ? updates.alternatives : currentADR.alternatives) : ''}`,
+      adr_id: parseInt(adrId)
+    };
+    
+    return this.upsertADR(currentADR.project_id, upsertRequest);
   }
 
   /**
@@ -422,6 +496,56 @@ export class ADRApiService {
   }
 
   /**
+   * Validate upsert ADR request data
+   * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
+   */
+  private static validateUpsertADRRequest(adr: UpsertADRRequest): void {
+    if (!adr.title || typeof adr.title !== 'string' || !adr.title.trim()) {
+      throw new Error('Invalid ADR: title must be a non-empty string');
+    }
+
+    if (!['proposed', 'accepted', 'rejected', 'deprecated', 'superseded'].includes(adr.status)) {
+      throw new Error('Invalid ADR: status must be proposed, accepted, rejected, deprecated, or superseded');
+    }
+
+    if (!adr.context || typeof adr.context !== 'string') {
+      throw new Error('Invalid ADR: context must be a non-empty string');
+    }
+
+    if (!adr.decision || typeof adr.decision !== 'string') {
+      throw new Error('Invalid ADR: decision must be a non-empty string');
+    }
+
+    if (!adr.consequences || typeof adr.consequences !== 'string') {
+      throw new Error('Invalid ADR: consequences must be a non-empty string');
+    }
+
+    if (!adr.author || typeof adr.author !== 'string' || !adr.author.trim()) {
+      throw new Error('Invalid ADR: author must be a non-empty string');
+    }
+
+    if (!adr.content || typeof adr.content !== 'string') {
+      throw new Error('Invalid ADR: content must be a non-empty string');
+    }
+
+    if (!Array.isArray(adr.tags)) {
+      throw new Error('Invalid ADR: tags must be an array');
+    }
+
+    // Validate tags array contains only strings
+    for (const tag of adr.tags) {
+      if (typeof tag !== 'string') {
+        throw new Error('Invalid ADR: all tags must be strings');
+      }
+    }
+
+    // Validate adr_id if provided (for updates)
+    if (adr.adr_id !== undefined && (!Number.isInteger(adr.adr_id) || adr.adr_id <= 0)) {
+      throw new Error('Invalid ADR: adr_id must be a positive integer');
+    }
+  }
+
+  /**
    * Map API response data to ADR interface with proper validation
    */
   public static mapToADR(data: any): ADR {
@@ -438,8 +562,23 @@ export class ADRApiService {
       throw new Error('Invalid ADR: title must be a non-empty string');
     }
 
-    if (!['proposed', 'accepted', 'deprecated', 'superseded'].includes(data.status)) {
-      throw new Error('Invalid ADR: status must be proposed, accepted, deprecated, or superseded');
+    // Check for missing fields and provide detailed error message
+    const missingFields: string[] = [];
+    
+    if (!data.status) missingFields.push('status');
+    if (!data.context) missingFields.push('context');
+    if (!data.decision) missingFields.push('decision');
+    if (!data.consequences) missingFields.push('consequences');
+    if (!data.author) missingFields.push('author');
+
+    if (missingFields.length > 0) {
+      console.error('Server response missing ADR fields:', missingFields);
+      console.error('Actual server response:', data);
+      throw new Error(`Invalid ADR: missing required fields: ${missingFields.join(', ')}. Server may not be returning complete ADR objects.`);
+    }
+
+    if (!['proposed', 'accepted', 'rejected', 'deprecated', 'superseded'].includes(data.status)) {
+      throw new Error('Invalid ADR: status must be proposed, accepted, rejected, deprecated, or superseded');
     }
 
     if (typeof data.context !== 'string') {
@@ -452,6 +591,10 @@ export class ADRApiService {
 
     if (typeof data.consequences !== 'string') {
       throw new Error('Invalid ADR: consequences must be a string');
+    }
+
+    if (typeof data.author !== 'string' || !data.author.trim()) {
+      throw new Error('Invalid ADR: author must be a non-empty string');
     }
 
     // Parse dates with proper error handling
@@ -485,12 +628,12 @@ export class ADRApiService {
       decision: data.decision,
       consequences: data.consequences,
       alternatives: data.alternatives || '',
-      author: data.author || 'Unknown',
+      author: data.author.trim(),
       created_at: createdAt,
       updated_at: updatedAt,
-      tags: Array.isArray(data.tags) ? data.tags : [],
+      tags: Array.isArray(data.tags) ? data.tags.filter((tag: any) => typeof tag === 'string') : [],
       superseded_by: data.superseded_by || undefined,
-      supersedes: Array.isArray(data.supersedes) ? data.supersedes : []
+      supersedes: Array.isArray(data.supersedes) ? data.supersedes.filter((id: any) => typeof id === 'string') : []
     };
   }
 

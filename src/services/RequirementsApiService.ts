@@ -6,6 +6,7 @@ import {
   RequirementItem,
   CreateRequirementItemRequest,
   UpdateRequirementItemRequest,
+  UpsertRequirementItemRequest,
   SaveRequirementsDocumentRequest,
   SaveRequirementsSystemRequest,
   BulkUpdateRequirementRequest,
@@ -357,6 +358,48 @@ export class RequirementsApiService {
     }
   }
 
+
+
+
+  /**
+   * Upsert requirement item
+   * Requirements: 6.1, 6.2
+   */
+  public static async upsertRequirementItem(
+    projectId: string,
+    item: RequirementItem
+  ): Promise<RequirementItem> {
+    try {
+
+      const response = await apiClient.post<RequirementItem>(
+        getVersionedPath(`projects/${projectId}/requirement-items`),
+        {
+          title: item.title,
+          description: item.description,
+          priority: item.priority || 'medium',
+          project_id: item.project_id || projectId,
+          id: item.id || null,
+          status: item.status
+        }
+      );
+
+      return this.mapToRequirementItem(response.data);
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+
+  private static buildUpsertPayload(project_id: string, item: RequirementItem): UpsertRequirementItemRequest {
+    const payload: UpsertRequirementItemRequest = {
+      project_id: item.project_id,
+      description: item.description,
+      priority: item.priority,
+      status: item.status
+    };
+    return payload;
+  }
+
   /**
    * Create a new requirement item
    * Requirements: 6.1, 6.2
@@ -433,19 +476,19 @@ export class RequirementsApiService {
     try {
       const params = new URLSearchParams();
       params.append('project_id', projectId);
-      
+
       if (options?.status) {
         params.append('status', options.status);
       }
-      
+
       if (options?.priority) {
         params.append('priority', options.priority);
       }
-      
+
       if (options?.skip !== undefined) {
         params.append('skip', options.skip.toString());
       }
-      
+
       if (options?.limit !== undefined) {
         params.append('limit', options.limit.toString());
       }
@@ -532,7 +575,7 @@ export class RequirementsApiService {
     try {
       const response = await apiClient.put<RequirementItem>(
         getVersionedPath(`requirement-items/${itemId}/status`),
-        { 
+        {
           status,
           updated_at: new Date().toISOString()
         }

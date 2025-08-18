@@ -125,6 +125,18 @@ export interface UpdateRequirementItemRequest {
   status?: 'new' | 'accepted' | 'rejected';
 }
 
+// Upsert request interface for unified create/update operations
+export interface UpsertRequirementItemRequest {
+  project_id: string;  
+  title?: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  status?: 'new' | 'accepted' | 'rejected';
+  id?: number; // Optional - presence determines create vs update
+}
+
+
+
 export interface SaveRequirementsSystemRequest {
   document?: RequirementsDocument;
   items?: RequirementItem[];

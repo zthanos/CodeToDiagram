@@ -408,15 +408,15 @@ export class ProjectOutlineApiService {
     }
 
     // Validate required fields
-    if (!data.project_id) {
+    if (!data.id) {
       throw new Error('Invalid project outline: project_id is required');
     }
 
-    if (typeof data.content !== 'string') {
-      throw new Error('Invalid project outline: content must be a string');
-    }
+    // if (typeof data.content !== 'string') {
+    //   throw new Error('Invalid project outline: content must be a string');
+    // }
 
-    if (!['draft', 'active', 'archived'].includes(data.status)) {
+    if (!['draft', 'active', 'archived'].includes(data.state)) {
       throw new Error('Invalid project outline: status must be draft, active, or archived');
     }
 
@@ -431,14 +431,17 @@ export class ProjectOutlineApiService {
     }
 
     // Parse version numbers with defaults
-    const version = typeof data.version === 'number' ? data.version : 1;
-    const workingVersion = typeof data.working_version === 'number' ? data.working_version : version;
+    const version = 1;//typeof data.version === 'number' ? data.version : 1;
+    const workingVersion = version;//typeof data.working_version === 'number' ? data.working_version : version;
 
     return {
       id: outlineId,
       project_id: data.project_id,
       content: data.content,
       status: data.status as 'draft' | 'active' | 'archived',
+      adrs: data.adrs,
+      teams: data.teams,
+      notes: data.notes,
       version: version,
       working_version: workingVersion,
       created_at: data.created_at || new Date().toISOString(),
