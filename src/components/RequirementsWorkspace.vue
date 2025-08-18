@@ -307,6 +307,7 @@ import MarkdownRenderer from './MarkdownRenderer.vue'
 import RequirementsTabsContainer from './RequirementsTabsContainer.vue'
 import { RequirementsApiService } from '../services/RequirementsApiService'
 import { TeamsApiService } from '../services/TeamsApiService'
+import {  RequiredSystemApiService} from '../services/SystemsApiService'
 import type {
   RequirementsDocument,
   RequirementItem,
@@ -315,6 +316,7 @@ import type {
   TabState
 } from '../types/requirements'
 import type { Project } from '../types/project'
+import SystemsList from './SystemsList.vue'
 
 // Props interface
 interface Props {
@@ -422,6 +424,7 @@ const conflictResolutionMode = ref(false)
 // Lifecycle
 onMounted(async () => {
   await loadRequirementsDocument()
+  await loadSystemsAndTeamsData()
   setupAutoSave()
 })
 
@@ -659,6 +662,7 @@ async function loadRequirementItems() {
   }
 }
 
+
 async function handleLoadingError(error: any) {
   // Handle different types of loading errors
   if (error?.type === 'CLIENT' && error?.message?.includes('not found')) {
@@ -733,6 +737,10 @@ async function retryLoadRequirements() {
     // Load requirement items associated with this document
     await loadRequirementItems()
 
+
+
+
+
     // Reset retry count on successful load
     retryCount.value = 0
 
@@ -758,8 +766,8 @@ async function loadSystemsAndTeamsData() {
   try {
     // Load teams data from API
     const teams = await TeamsApiService.listTeams(props.project.id)
-    teamsData.value = teams
-    tabState.value.teams.items = teams
+    teamsData.value = teams.data
+    tabState.value.teams.items = teams.data
 
     console.log(`Loaded ${teams.length} teams from API`)
   } catch (error: any) {
@@ -786,24 +794,17 @@ async function loadSystemsAndTeamsData() {
 
     showNotification('error', 'Failed to load teams data. Using sample data.')
   }
+  
 
-  // Sample systems data (this would come from API in real implementation)
-  systemsData.value = [
-    {
-      id: '1',
-      name: 'Authentication Service',
-      description: 'Handles user authentication and authorization',
-      type: 'internal',
-      dependencies: ['Database', 'Email Service']
-    },
-    {
-      id: '2',
-      name: 'Payment Gateway',
-      description: 'External payment processing system',
-      type: 'external',
-      dependencies: []
-    }
-  ]
+  const systems = await RequiredSystemApiService.listRequiredSystems(props.project.id)
+  systemsData.value = systems.data.map(r => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      type: r.system_type  as SystemInfo['type'],
+      dependencies: r.dependencies
+
+  }));
 
   // Update tab state for systems
   tabState.value.systems.items = systemsData.value
