@@ -14,9 +14,9 @@ export interface RequiredSystem {
 
 // API request/response types
 export interface UpsertRequiredSystemRequest {
-    id?: string;
+    id: number;
     name?: string;
-    system_type?: string;
+    type?: string;
     description?: string;
     dependencies?: string[]
   }

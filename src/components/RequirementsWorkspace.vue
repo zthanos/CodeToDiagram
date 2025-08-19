@@ -307,7 +307,7 @@ import MarkdownRenderer from './MarkdownRenderer.vue'
 import RequirementsTabsContainer from './RequirementsTabsContainer.vue'
 import { RequirementsApiService } from '../services/RequirementsApiService'
 import { TeamsApiService } from '../services/TeamsApiService'
-import {  RequiredSystemApiService} from '../services/SystemsApiService'
+import { RequiredSystemApiService } from '../services/SystemsApiService'
 import type {
   RequirementsDocument,
   RequirementItem,
@@ -766,8 +766,8 @@ async function loadSystemsAndTeamsData() {
   try {
     // Load teams data from API
     const teams = await TeamsApiService.listTeams(props.project.id)
-    teamsData.value = teams.data
-    tabState.value.teams.items = teams.data
+    teamsData.value = teams
+    tabState.value.teams.items = teams
 
     console.log(`Loaded ${teams.length} teams from API`)
   } catch (error: any) {
@@ -794,17 +794,11 @@ async function loadSystemsAndTeamsData() {
 
     showNotification('error', 'Failed to load teams data. Using sample data.')
   }
-  
+
 
   const systems = await RequiredSystemApiService.listRequiredSystems(props.project.id)
-  systemsData.value = systems.data.map(r => ({
-      id: r.id,
-      name: r.name,
-      description: r.description,
-      type: r.system_type  as SystemInfo['type'],
-      dependencies: r.dependencies
+  systemsData.value = systems;
 
-  }));
 
   // Update tab state for systems
   tabState.value.systems.items = systemsData.value
@@ -1340,21 +1334,52 @@ function handleSystemSelect(systemId: string) {
   tabState.value.systems.selectedSystem = systemId
 }
 
-function handleSystemCreate(system: Omit<SystemInfo, 'id'>) {
+async function handleSystemCreate(system: Omit<SystemInfo, 'id'>) {
+
+  const savedSystem = await RequiredSystemApiService.upsertRequiredSystem(
+    props.project.id,
+    null,
+    system.name,
+    system.type,
+    system.description,
+    system.dependencies
+  )
+
   const newSystem: SystemInfo = {
     ...system,
-    id: Date.now().toString()
+    id: savedSystem.id
   }
   systemsData.value.push(newSystem)
 }
 
-function handleSystemUpdate(systemId: string, updates: Partial<SystemInfo>) {
+async function handleSystemUpdate(systemId: string, updates: Partial<SystemInfo>) {
+  const savedSystem = await RequiredSystemApiService.upsertRequiredSystem(
+    props.project.id,
+    systemId,
+    updates.name,
+    updates.type,
+    updates.description,
+    updates.dependencies
+  )
+
   const index = systemsData.value.findIndex(s => s.id === systemId)
   if (index !== -1) {
-    systemsData.value[index] = { ...systemsData.value[index], ...updates }
+    // systemsData.value[index] = { ...systemsData.value[index], ...updates }
+    systemsData.value[index] = {
+      id: savedSystem.id,
+      name: savedSystem.name,
+      description: savedSystem.description,
+      type: savedSystem.system_type as SystemInfo['type'],
+      dependencies: savedSystem.dependencies
+    }
+
+
+
+
   }
   console.log('Save clicked', updates)
 }
+
 
 function handleSystemDelete(systemId: string) {
   systemsData.value = systemsData.value.filter(s => s.id !== systemId)

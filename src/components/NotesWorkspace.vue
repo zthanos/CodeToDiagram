@@ -8,17 +8,10 @@
       </div>
       <div class="header-right">
         <div class="header-actions">
-          <button 
-            class="btn-secondary"
-            @click="showSearchModal = true"
-            :disabled="notes.length === 0"
-          >
+          <button class="btn-secondary" @click="showSearchModal = true" :disabled="notes.length === 0">
             🔍 Search
           </button>
-          <button 
-            class="btn-primary"
-            @click="createNewNote"
-          >
+          <button class="btn-primary" @click="createNewNote">
             ➕ New Note
           </button>
         </div>
@@ -54,7 +47,7 @@
               </option>
             </select>
           </div>
-          
+
           <div class="sort-section">
             <label class="sort-label">Sort by:</label>
             <select v-model="sortBy" class="sort-select">
@@ -72,14 +65,9 @@
             <p v-if="notes.length === 0">No notes yet. Create your first note!</p>
             <p v-else>No notes match your current filter.</p>
           </div>
-          
-          <div 
-            v-for="note in filteredNotes" 
-            :key="note.id"
-            class="note-item"
-            :class="{ active: selectedNote?.id === note.id }"
-            @click="selectNote(note)"
-          >
+
+          <div v-for="note in filteredNotes" :key="note.id" class="note-item"
+            :class="{ active: selectedNote?.id === note.id }" @click="selectNote(note)">
             <div class="note-header">
               <h4 class="note-title">{{ note.title || 'Untitled Note' }}</h4>
               <div class="note-meta">
@@ -88,11 +76,7 @@
             </div>
             <div class="note-preview">{{ getPreviewText(note.content) }}</div>
             <div v-if="note.tags && note.tags.length > 0" class="note-tags">
-              <span 
-                v-for="tag in note.tags" 
-                :key="tag" 
-                class="note-tag"
-              >
+              <span v-for="tag in note.tags" :key="tag" class="note-tag">
                 {{ tag }}
               </span>
             </div>
@@ -111,41 +95,20 @@
         <div v-else class="editor-container">
           <!-- Editor Header -->
           <div class="editor-header">
-            <input 
-              v-model="selectedNote.title"
-              class="note-title-input"
-              placeholder="Note title..."
-              @input="markAsModified"
-            />
+            <input v-model="selectedNote.title" class="note-title-input" placeholder="Note title..."
+              @input="markAsModified" />
             <div class="editor-actions">
-              <button 
-                class="btn-icon"
-                @click="toggleFavorite"
-                :class="{ active: selectedNote.is_favorite }"
-                title="Toggle favorite"
-              >
+              <button class="btn-icon" @click="toggleFavorite" :class="{ active: selectedNote.is_favorite }"
+                title="Toggle favorite">
                 {{ selectedNote.is_favorite ? '⭐' : '☆' }}
               </button>
-              <button 
-                class="btn-secondary"
-                @click="showTagsModal = true"
-                title="Manage tags"
-              >
+              <button class="btn-secondary" @click="showTagsModal = true" title="Manage tags">
                 🏷️ Tags
               </button>
-              <button 
-                class="btn-secondary"
-                @click="saveNote"
-                :disabled="!isModified"
-                title="Save note"
-              >
+              <button class="btn-secondary" @click="saveNote" :disabled="!isModified" title="Save note">
                 💾 Save
               </button>
-              <button 
-                class="btn-danger"
-                @click="confirmDeleteNote"
-                title="Delete note"
-              >
+              <button class="btn-danger" @click="confirmDeleteNote" title="Delete note">
                 🗑️ Delete
               </button>
             </div>
@@ -153,12 +116,8 @@
 
           <!-- Editor Content -->
           <div class="editor-content">
-            <textarea 
-              v-model="selectedNote.content"
-              class="note-content-editor"
-              placeholder="Start writing your note..."
-              @input="markAsModified"
-            ></textarea>
+            <textarea v-model="selectedNote.content" class="note-content-editor"
+              placeholder="Start writing your note..." @input="markAsModified"></textarea>
           </div>
 
           <!-- Editor Footer -->
@@ -187,23 +146,14 @@
           <button class="modal-close" @click="showSearchModal = false">×</button>
         </div>
         <div class="modal-body">
-          <input 
-            v-model="searchQuery"
-            class="search-input"
-            placeholder="Search in titles and content..."
-            @input="performSearch"
-            ref="searchInput"
-          />
+          <input v-model="searchQuery" class="search-input" placeholder="Search in titles and content..."
+            @input="performSearch" ref="searchInput" />
           <div class="search-results">
             <div v-if="searchResults.length === 0 && searchQuery" class="no-results">
               No notes found matching "{{ searchQuery }}"
             </div>
-            <div 
-              v-for="result in searchResults" 
-              :key="result.id"
-              class="search-result"
-              @click="selectNoteFromSearch(result)"
-            >
+            <div v-for="result in searchResults" :key="result.id" class="search-result"
+              @click="selectNoteFromSearch(result)">
               <h4>{{ result.title || 'Untitled Note' }}</h4>
               <p>{{ getPreviewText(result.content) }}</p>
               <div class="search-meta">
@@ -229,34 +179,21 @@
           <div class="current-tags">
             <label>Current tags:</label>
             <div class="tags-list">
-              <span 
-                v-for="tag in selectedNote?.tags || []" 
-                :key="tag" 
-                class="tag-item"
-              >
+              <span v-for="tag in selectedNote?.tags || []" :key="tag" class="tag-item">
                 {{ tag }}
                 <button @click="removeTag(tag)" class="tag-remove">×</button>
               </span>
             </div>
           </div>
           <div class="add-tag">
-            <input 
-              v-model="newTag"
-              class="tag-input"
-              placeholder="Add new tag..."
-              @keyup.enter="addTag"
-            />
+            <input v-model="newTag" class="tag-input" placeholder="Add new tag..." @keyup.enter="addTag" />
             <button @click="addTag" class="btn-primary">Add</button>
           </div>
           <div class="available-tags">
             <label>Available tags:</label>
             <div class="tags-list">
-              <button 
-                v-for="tag in availableTagsForSelection" 
-                :key="tag" 
-                class="tag-suggestion"
-                @click="addExistingTag(tag)"
-              >
+              <button v-for="tag in availableTagsForSelection" :key="tag" class="tag-suggestion"
+                @click="addExistingTag(tag)">
                 {{ tag }}
               </button>
             </div>
@@ -295,6 +232,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { Project } from '../types/project'
 import { useWorkspaceDataSharing } from '../composables/useWorkspaceDataSharing'
+import { NotesApiService } from '@/services/NotesApiService';
 
 // Props
 interface Props {
@@ -361,7 +299,7 @@ const filteredNotes = computed(() => {
 
   // Filter by tag
   if (selectedTag.value) {
-    filtered = filtered.filter(note => 
+    filtered = filtered.filter(note =>
       note.tags?.includes(selectedTag.value)
     )
   }
@@ -403,41 +341,44 @@ async function loadNotes() {
 
   try {
     // Simulate API call - replace with actual API service
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
+    const items = await NotesApiService.listNotes(props.project.id);
+    notes.value = items;
+
+    // await new Promise(resolve => setTimeout(resolve, 500))
+
     // Sample data - replace with actual API call
-    notes.value = [
-      {
-        id: '1',
-        title: 'Project Architecture Notes',
-        content: 'Key architectural decisions and considerations for the project.\n\n- Use microservices architecture\n- Implement event-driven communication\n- Consider scalability from the start',
-        tags: ['architecture', 'planning'],
-        is_favorite: true,
-        created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        project_id: props.project.id
-      },
-      {
-        id: '2',
-        title: 'Meeting Notes - Sprint Planning',
-        content: 'Sprint planning meeting notes from today.\n\nAttendees: Team leads, Product Owner\n\nKey decisions:\n- Focus on user authentication this sprint\n- Implement basic CRUD operations\n- Set up CI/CD pipeline',
-        tags: ['meetings', 'sprint-planning'],
-        is_favorite: false,
-        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        project_id: props.project.id
-      },
-      {
-        id: '3',
-        title: 'Technical Debt Items',
-        content: 'List of technical debt items to address:\n\n1. Refactor authentication service\n2. Update deprecated dependencies\n3. Improve error handling in API layer\n4. Add comprehensive logging',
-        tags: ['technical-debt', 'maintenance'],
-        is_favorite: false,
-        created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        updated_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-        project_id: props.project.id
-      }
-    ]
+    // notes.value = [
+    //   {
+    //     id: '1',
+    //     title: 'Project Architecture Notes',
+    //     content: 'Key architectural decisions and considerations for the project.\n\n- Use microservices architecture\n- Implement event-driven communication\n- Consider scalability from the start',
+    //     tags: ['architecture', 'planning'],
+    //     is_favorite: true,
+    //     created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    //     updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    //     project_id: props.project.id
+    //   },
+    //   {
+    //     id: '2',
+    //     title: 'Meeting Notes - Sprint Planning',
+    //     content: 'Sprint planning meeting notes from today.\n\nAttendees: Team leads, Product Owner\n\nKey decisions:\n- Focus on user authentication this sprint\n- Implement basic CRUD operations\n- Set up CI/CD pipeline',
+    //     tags: ['meetings', 'sprint-planning'],
+    //     is_favorite: false,
+    //     created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    //     updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    //     project_id: props.project.id
+    //   },
+    //   {
+    //     id: '3',
+    //     title: 'Technical Debt Items',
+    //     content: 'List of technical debt items to address:\n\n1. Refactor authentication service\n2. Update deprecated dependencies\n3. Improve error handling in API layer\n4. Add comprehensive logging',
+    //     tags: ['technical-debt', 'maintenance'],
+    //     is_favorite: false,
+    //     created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    //     updated_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    //     project_id: props.project.id
+    //   }
+    // ]
 
     // Update shared data
     dataSharing.updateNotesData(notes.value)
@@ -481,7 +422,7 @@ function selectNote(note: Note) {
       saveNote()
     }
   }
-  
+
   selectedNote.value = note
   isModified.value = false
 }
@@ -495,10 +436,16 @@ async function saveNote() {
 
   try {
     selectedNote.value.updated_at = new Date()
-    
+
+    const savedNote = NotesApiService.upsertNote(
+      props.project.id, 
+      selectedNote.value.title, 
+      selectedNote.value.content, 
+      selectedNote.value.tags, 
+      selectedNote.value.id)
     // Simulate API call - replace with actual API service
     await new Promise(resolve => setTimeout(resolve, 300))
-    
+
     // Update the note in the list
     const index = notes.value.findIndex(n => n.id === selectedNote.value!.id)
     if (index >= 0) {
@@ -510,7 +457,7 @@ async function saveNote() {
 
     isModified.value = false
     showNotification('success', 'Note saved successfully')
-    
+
     console.log('Note saved:', selectedNote.value)
   } catch (err) {
     console.error('Failed to save note:', err)
@@ -527,21 +474,22 @@ async function deleteNote() {
 
   try {
     // Simulate API call - replace with actual API service
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
+    await NotesApiService.deleteNote(selectedNote.value.id)
+    // await new Promise(resolve => setTimeout(resolve, 300))
+
     // Remove from list
     notes.value = notes.value.filter(n => n.id !== selectedNote.value!.id)
-    
+
     // Update shared data
     dataSharing.updateNotesData(notes.value)
-    
+
     // Clear selection
     selectedNote.value = null
     isModified.value = false
     showDeleteConfirm.value = false
-    
+
     showNotification('success', 'Note deleted successfully')
-    
+
     console.log('Note deleted')
   } catch (err) {
     console.error('Failed to delete note:', err)
@@ -551,26 +499,26 @@ async function deleteNote() {
 
 function toggleFavorite() {
   if (!selectedNote.value) return
-  
+
   selectedNote.value.is_favorite = !selectedNote.value.is_favorite
   markAsModified()
 }
 
 function addTag() {
   if (!selectedNote.value || !newTag.value.trim()) return
-  
+
   const tag = newTag.value.trim().toLowerCase()
   if (!selectedNote.value.tags.includes(tag)) {
     selectedNote.value.tags.push(tag)
     markAsModified()
   }
-  
+
   newTag.value = ''
 }
 
 function addExistingTag(tag: string) {
   if (!selectedNote.value) return
-  
+
   if (!selectedNote.value.tags.includes(tag)) {
     selectedNote.value.tags.push(tag)
     markAsModified()
@@ -579,7 +527,7 @@ function addExistingTag(tag: string) {
 
 function removeTag(tag: string) {
   if (!selectedNote.value) return
-  
+
   selectedNote.value.tags = selectedNote.value.tags.filter(t => t !== tag)
   markAsModified()
 }
@@ -591,7 +539,7 @@ function performSearch() {
   }
 
   const query = searchQuery.value.toLowerCase()
-  searchResults.value = notes.value.filter(note => 
+  searchResults.value = notes.value.filter(note =>
     (note.title?.toLowerCase().includes(query)) ||
     (note.content?.toLowerCase().includes(query)) ||
     (note.tags?.some(tag => tag.toLowerCase().includes(query)))
@@ -614,7 +562,7 @@ function formatDate(date: Date): string {
   const now = new Date()
   const diffTime = now.getTime() - new Date(date).getTime()
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-  
+
   if (diffDays === 0) {
     return 'Today'
   } else if (diffDays === 1) {
@@ -694,7 +642,8 @@ function showNotification(type: 'success' | 'error', message: string) {
 }
 
 /* Loading and Error States */
-.loading-state, .error-state {
+.loading-state,
+.error-state {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -714,8 +663,13 @@ function showNotification(type: 'success' | 'error', message: string) {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .error-icon {
@@ -745,15 +699,18 @@ function showNotification(type: 'success' | 'error', message: string) {
   background: #ffffff;
 }
 
-.filter-section, .sort-section {
+.filter-section,
+.sort-section {
   margin-bottom: 12px;
 }
 
-.filter-section:last-child, .sort-section:last-child {
+.filter-section:last-child,
+.sort-section:last-child {
   margin-bottom: 0;
 }
 
-.filter-label, .sort-label {
+.filter-label,
+.sort-label {
   display: block;
   font-size: 12px;
   font-weight: 500;
@@ -763,7 +720,8 @@ function showNotification(type: 'success' | 'error', message: string) {
   letter-spacing: 0.05em;
 }
 
-.filter-select, .sort-select {
+.filter-select,
+.sort-select {
   width: 100%;
   padding: 6px 8px;
   border: 1px solid #d1d5db;
@@ -1193,11 +1151,14 @@ function showNotification(type: 'success' | 'error', message: string) {
 }
 
 /* Tags Modal */
-.current-tags, .add-tag, .available-tags {
+.current-tags,
+.add-tag,
+.available-tags {
   margin-bottom: 20px;
 }
 
-.current-tags label, .available-tags label {
+.current-tags label,
+.available-tags label {
   display: block;
   font-size: 14px;
   font-weight: 500;

@@ -57,6 +57,7 @@ export class TeamsApiService {
       const response = await apiClient.get<TeamInfo[]>(
         getVersionedPath(`projects/${projectId}/teams`)
       )
+      return response.data.data.map(items => this.mapResponse(items));
       return response.data
     } catch (error) {
       throw this.handleApiError(error as AxiosError)
@@ -129,7 +130,7 @@ export class TeamsApiService {
    * Assign a team to a requirement
    */
   static async assignTeamToRequirement(
-    projectId: string, 
+    projectId: string,
     assignmentData: TeamAssignmentRequest
   ): Promise<TeamAssignment> {
     try {
@@ -235,5 +236,69 @@ export class TeamsApiService {
       // Other error
       return new Error(`Request error: ${error.message}`)
     }
+  }
+
+
+  /**
+     * Map API response data to ADR interface with proper validation
+     */
+  public static mapResponse(data: any): TeamInfo {
+    if (!data) {
+      throw new Error('Invalid Teams data: data is null or undefined');
+    }
+
+    // Validate required fields
+    if (!data.id) {
+      throw new Error('Invalid Team: id is required');
+    }
+
+    if (typeof data.name !== 'string' || !data.name.trim()) {
+      throw new Error('Invalid Team: name must be a non-empty string');
+    }
+
+    // Check for missing fields and provide detailed error message
+    const missingFields: string[] = [];
+
+    if (!data.name) missingFields.push('name');
+
+
+    if (missingFields.length > 0) {
+      console.error('Server response missing RequiredSystem fields:', missingFields);
+      console.error('Actual server response:', data);
+      throw new Error(`Invalid RequiredSystem: missing required fields: ${missingFields.join(', ')}. Server may not be returning complete RequiredSystem objects.`);
+    }
+
+
+
+
+
+    // Parse dates with proper error handling
+    let createdAt: Date;
+    let updatedAt: Date;
+
+    try {
+      createdAt = data.created_at ? new Date(data.created_at) : new Date();
+      if (isNaN(createdAt.getTime())) {
+        createdAt = new Date();
+      }
+    } catch (error) {
+      createdAt = new Date();
+    }
+
+    try {
+      updatedAt = data.updated_at ? new Date(data.updated_at) : new Date();
+      if (isNaN(updatedAt.getTime())) {
+        updatedAt = new Date();
+      }
+    } catch (error) {
+      updatedAt = new Date();
+    }
+
+    return {
+      id: data.id.toString(),
+      name: data.name.trim(),
+      members: data.members,
+      responsibilities: data.responsibilities
+    };
   }
 }

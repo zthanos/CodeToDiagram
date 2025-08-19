@@ -32,6 +32,13 @@ export interface NoteUI extends Note {
   hasUnsavedChanges: boolean;
   validationErrors: string[];
 }
+// Upsert request interface for unified create/update operations
+export interface UpsertNoteRequest {
+  title: string;
+  content: string;
+  tags?: string[];
+  id?: number; // Optional - presence determines create vs update
+}
 
 // API request types
 export interface CreateNoteRequest {

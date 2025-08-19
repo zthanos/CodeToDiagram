@@ -347,6 +347,8 @@ import useWorkspaceErrorHandling from '../composables/useWorkspaceErrorHandling'
 import type { Project } from '../types/project'
 import type { ProjectOutline } from '../types/projectOutline'
 import type { RequirementsDocument, RequirementItem, SystemInfo, TeamInfo } from '../types/requirements'
+import { TeamsApiService } from '@/services/TeamsApiService'
+import { RequiredSystemApiService } from '@/services/SystemsApiService'
 
 // Props interface
 interface Props {
@@ -657,31 +659,36 @@ async function loadTeamsData() {
   try {
     // For now, use sample data since teams API service doesn't exist yet
     // This will be replaced with actual API call when teams service is implemented
-    await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
+    // await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
+    const teams = await TeamsApiService.listTeams(props.project.id)
 
-    teamsData.value = [
-      {
-        id: '1',
-        name: 'Frontend Team',
-        role: 'Development',
-        members: ['Alice Johnson', 'Bob Smith'],
-        responsibilities: ['UI/UX Implementation', 'Client-side Logic']
-      },
-      {
-        id: '2',
-        name: 'Backend Team',
-        role: 'Development',
-        members: ['Charlie Brown', 'Diana Prince'],
-        responsibilities: ['API Development', 'Database Design']
-      },
-      {
-        id: '3',
-        name: 'QA Team',
-        role: 'Quality Assurance',
-        members: ['Eve Wilson'],
-        responsibilities: ['Testing', 'Quality Control']
-      }
-    ]
+
+    teamsData.value  = teams
+
+
+    // teamsData.value = [
+    //   {
+    //     id: '1',
+    //     name: 'Frontend Team',
+    //     role: 'Development',
+    //     members: ['Alice Johnson', 'Bob Smith'],
+    //     responsibilities: ['UI/UX Implementation', 'Client-side Logic']
+    //   },
+    //   {
+    //     id: '2',
+    //     name: 'Backend Team',
+    //     role: 'Development',
+    //     members: ['Charlie Brown', 'Diana Prince'],
+    //     responsibilities: ['API Development', 'Database Design']
+    //   },
+    //   {
+    //     id: '3',
+    //     name: 'QA Team',
+    //     role: 'Quality Assurance',
+    //     members: ['Eve Wilson'],
+    //     responsibilities: ['Testing', 'Quality Control']
+    //   }
+    // ]
 
     console.log('Teams data loaded:', teamsData.value)
   } catch (error: any) {
@@ -703,38 +710,51 @@ async function loadSystemsData() {
   try {
     // For now, use sample data since systems API service doesn't exist yet
     // This will be replaced with actual API call when systems service is implemented
-    await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
+    // await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
+    const systems = await RequiredSystemApiService.listRequiredSystems(props.project.id)
 
-    systemsData.value = [
-      {
-        id: '1',
-        name: 'Authentication Service',
-        description: 'Handles user authentication and authorization',
-        type: 'internal',
-        dependencies: ['Database', 'Email Service']
-      },
-      {
-        id: '2',
-        name: 'Payment Gateway',
-        description: 'External payment processing system',
-        type: 'external',
-        dependencies: []
-      },
-      {
-        id: '3',
-        name: 'Notification Service',
-        description: 'Handles email and push notifications',
-        type: 'internal',
-        dependencies: ['Email Service', 'Push Service']
-      },
-      {
-        id: '4',
-        name: 'Third-party Analytics',
-        description: 'External analytics and reporting service',
-        type: 'external',
-        dependencies: []
-      }
-    ]
+
+    systemsData.value  = systems
+    // .data.map(r => ({
+    //   id: String(r.id),
+    //   name: r.name,
+    //   description: r.description,
+    //   type: (r.system_type ?? '').toLowerCase(),
+    //   dependencies: r.dependencies,
+    //   // prefer updated_at for recency, fall back to created_at
+    //   created_at: r.updated_at || r.created_at,
+    // }))
+
+    // systemsData.value = [
+    //   {
+    //     id: '1',
+    //     name: 'Authentication Service',
+    //     description: 'Handles user authentication and authorization',
+    //     type: 'internal',
+    //     dependencies: ['Database', 'Email Service']
+    //   },
+    //   {
+    //     id: '2',
+    //     name: 'Payment Gateway',
+    //     description: 'External payment processing system',
+    //     type: 'external',
+    //     dependencies: []
+    //   },
+    //   {
+    //     id: '3',
+    //     name: 'Notification Service',
+    //     description: 'Handles email and push notifications',
+    //     type: 'internal',
+    //     dependencies: ['Email Service', 'Push Service']
+    //   },
+    //   {
+    //     id: '4',
+    //     name: 'Third-party Analytics',
+    //     description: 'External analytics and reporting service',
+    //     type: 'external',
+    //     dependencies: []
+    //   }
+    // ]
 
     console.log('Systems data loaded:', systemsData.value)
   } catch (error: any) {

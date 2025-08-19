@@ -12,6 +12,7 @@ import {
 } from '../types/system'
 import { apiConfig, getVersionedPath } from '@/config/api';
 import { ApiErrorInfo, ApiErrorType } from './ProjectApiService';
+import { SystemInfo } from '@/types';
 
 // Create axios instance with default configuration
 const apiClient = axios.create({
@@ -268,7 +269,7 @@ export class RequiredSystemApiService {
             sort_order?: 'asc' | 'desc';
             search?: string;
         }
-    ): Promise<RequiredSystemListResponse> {
+    ): Promise<SystemInfo[]> {
         try {
             const params = new URLSearchParams();
 
@@ -302,25 +303,85 @@ export class RequiredSystemApiService {
             // Map the request_system data in the response
             const mappedData = response.data.data.map(request_system => this.mapToRequiredSystem(request_system));
 
-            return {
-                ...response.data,
-                data: mappedData
-            };
+            return response.data.data.map(system => this.mapToRequiredSystem(system));
         } catch (error) {
             throw this.handleApiError(error as AxiosError);
         }
     }
 
 
+    /**
+     * Create or update an RequiredSystem using upsert functionality
+     * Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 5.1, 5.2, 5.3, 5.4, 5.5
+     */
+    public static async upsertRequiredSystem(projectId: string,
+        id?: string,
+        name?: string,
+        system_type?: string,
+        description?: string,
+        dependencies?: string[]
+    ): Promise<SystemInfo> {
+        try {
 
 
+            const requestPayload = {
+                name: name,
+                description: description,
+                type: system_type,
+                dependencies:dependencies,
+                ...(id && { id: id }) // Include adr_id only if provided (for updates)
+            };
+            // Validate required fields before sending request
+            this.validateUpsertRequiredSystemRequest(requestPayload);
+
+            const response = await apiClient.post<UpsertRequiredSystemRequest>(
+                getVersionedPath(`projects/${projectId}/systems`),
+                requestPayload
+            );
+
+            return this.mapToRequiredSystem(response.data);
+        } catch (error) {
+            throw this.handleApiError(error as AxiosError);
+        }
+    }
+
+    /**
+     * Validate upsert system request data
+     * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
+     */
+    private static validateUpsertRequiredSystemRequest(system: UpsertRequiredSystemRequest): void {
+        if (!system.name || typeof system.name !== 'string') {
+            throw new Error('Invalid System: name must be a non-empty string');
+        }
+
+        if (!['internal', 'external', 'integration'].includes(system.type)) {
+            throw new Error('Invalid System: status must be proposed, accepted, rejected, deprecated, or superseded');
+        }
+
+
+        if (!Array.isArray(system.dependencies)) {
+            throw new Error('Invalid System: tags must be an array');
+        }
+
+        // Validate tags array contains only strings
+        for (const dependency of system.dependencies) {
+            if (typeof dependency !== 'string') {
+                throw new Error('Invalid System: all dependencies must be strings');
+            }
+        }
+
+        // Validate adr_id if provided (for updates)
+        // if (system.id !== undefined && (!Number.isInteger(system.id) || system.id <= 0)) {
+        //     throw new Error('Invalid System: id must be a positive integer');
+        // }
+    }
 
 
 
     /**
        * Map API response data to ADR interface with proper validation
        */
-    public static mapToRequiredSystem(data: any): RequiredSystem {
+    public static mapToRequiredSystem(data: any): SystemInfo {
         if (!data) {
             throw new Error('Invalid RequiredSystem data: data is null or undefined');
         }
@@ -383,12 +444,12 @@ export class RequiredSystemApiService {
 
         return {
             id: data.id.toString(),
-            project_id: data.project_id,
+            // project_id: data.project_id,
             name: data.name.trim(),
             description: data.description.trim(),
-            system_type: data.type,
-            created_at: createdAt,
-            updated_at: updatedAt,
+            type: data.type,
+            // created_at: createdAt,
+            // updated_at: updatedAt,
             dependencies: Array.isArray(data.tags) ? data.dependencies.filter((dependency: any) => typeof dependency === 'string') : []
         };
     }

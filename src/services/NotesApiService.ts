@@ -5,6 +5,7 @@ import {
   Note,
   CreateNoteRequest,
   UpdateNoteRequest,
+  UpsertNoteRequest,
   AssociateNoteRequest,
   NoteAssociation,
   NotesFilterOptions,
@@ -299,31 +300,31 @@ export class NotesApiService {
   ): Promise<Note[]> {
     try {
       const params = new URLSearchParams();
-      
+
       if (options?.entity_type) {
         params.append('entity_type', options.entity_type);
       }
-      
+
       if (options?.entity_id) {
         params.append('entity_id', options.entity_id);
       }
-      
+
       if (options?.tags && options.tags.length > 0) {
         params.append('tags', options.tags.join(','));
       }
-      
+
       if (options?.author) {
         params.append('author', options.author);
       }
-      
+
       if (options?.search_query) {
         params.append('search_query', options.search_query);
       }
-      
+
       if (options?.skip !== undefined) {
         params.append('skip', options.skip.toString());
       }
-      
+
       if (options?.limit !== undefined) {
         params.append('limit', options.limit.toString());
       }
@@ -332,7 +333,7 @@ export class NotesApiService {
         getVersionedPath(`projects/${projectId}/notes?${params.toString()}`)
       );
 
-      return response.data.map(note => this.mapToNote(note));
+      return response.data.data.map(note => this.mapToNote(note));
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }
@@ -397,19 +398,19 @@ export class NotesApiService {
       }
 
       const cleanUpdates: any = {};
-      
+
       if (updates.title !== undefined) {
         cleanUpdates.title = updates.title.trim();
       }
-      
+
       if (updates.content !== undefined) {
         cleanUpdates.content = updates.content.trim();
       }
-      
+
       if (updates.tags !== undefined) {
         cleanUpdates.tags = updates.tags;
       }
-      
+
       if (updates.associations !== undefined) {
         cleanUpdates.associations = updates.associations;
       }
@@ -434,6 +435,36 @@ export class NotesApiService {
       await apiClient.delete(
         getVersionedPath(`notes/${noteId}`)
       );
+    } catch (error) {
+      throw this.handleApiError(error as AxiosError);
+    }
+  }
+
+  /**
+   * Create or update an ADR using upsert functionality
+   * Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 5.1, 5.2, 5.3, 5.4, 5.5
+   */
+  public static async upsertNote(projectId: string, noteTitle: string, noteContent: string, noteTags: string[], noteId?: string,): Promise<Note> {
+    try {
+      // Validate required fields before sending request
+
+
+      const requestPayload = {
+        title: noteTitle,
+        author: "",//author,
+        tags: noteTags,
+        content: noteContent,
+        ...(noteId && { note_id: noteId }) // Include adr_id only if provided (for updates)
+      };
+
+      this.validateUpserNoteRequest(requestPayload);
+
+      const response = await apiClient.post<Note>(
+        getVersionedPath(`projects/${projectId}/notes`),
+        requestPayload
+      );
+
+      return this.mapToNote(response.data);
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }
@@ -498,15 +529,15 @@ export class NotesApiService {
     try {
       const params = new URLSearchParams();
       params.append('q', query);
-      
+
       if (options?.entity_type) {
         params.append('entity_type', options.entity_type);
       }
-      
+
       if (options?.tags && options.tags.length > 0) {
         params.append('tags', options.tags.join(','));
       }
-      
+
       if (options?.limit !== undefined) {
         params.append('limit', options.limit.toString());
       }
@@ -667,9 +698,6 @@ export class NotesApiService {
       throw new Error('Invalid note: content must be a string');
     }
 
-    if (typeof data.author !== 'string' || !data.author.trim()) {
-      throw new Error('Invalid note: author must be a non-empty string');
-    }
 
     // Parse dates with proper error handling
     let createdAt: Date;
@@ -705,9 +733,9 @@ export class NotesApiService {
     let associations: NoteAssociation[] = [];
     if (Array.isArray(data.associations)) {
       associations = data.associations
-        .filter(assoc => 
-          assoc && 
-          typeof assoc.entity_type === 'string' && 
+        .filter(assoc =>
+          assoc &&
+          typeof assoc.entity_type === 'string' &&
           typeof assoc.entity_id === 'string' &&
           ['requirement', 'adr', 'system', 'team'].includes(assoc.entity_type)
         )
@@ -723,11 +751,40 @@ export class NotesApiService {
       project_id: data.project_id.toString(),
       title: data.title.trim(),
       content: data.content,
-      author: data.author.trim(),
+      author: "",//data.author.trim(),
       created_at: createdAt,
       updated_at: updatedAt,
-      tags,
-      associations
+      tags
+      // associations
     };
+  }
+
+
+  /**
+     * Validate upsert ADR request data
+     * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
+     */
+  private static validateUpserNoteRequest(note: UpdateNoteRequest): void {
+    if (!note.title || typeof note.title !== 'string' || !note.title.trim()) {
+      throw new Error('Invalid note: title must be a non-empty string');
+    }
+
+    if (!note.content || typeof note.content !== 'string') {
+      throw new Error('Invalid note: context must be a non-empty string');
+    }
+
+
+    if (!Array.isArray(note.tags)) {
+      throw new Error('Invalid note: tags must be an array');
+    }
+
+    // Validate tags array contains only strings
+    for (const tag of note.tags) {
+      if (typeof tag !== 'string') {
+        throw new Error('Invalid note: all tags must be strings');
+      }
+    }
+
+
   }
 }
