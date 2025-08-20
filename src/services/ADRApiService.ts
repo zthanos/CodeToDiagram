@@ -265,7 +265,7 @@ export class ADRApiService {
       sort_order?: 'asc' | 'desc';
       search?: string;
     }
-  ): Promise<ADRListResponse> {
+  ): Promise<ADR[]> {
     try {
       const params = new URLSearchParams();
       
@@ -297,12 +297,12 @@ export class ADRApiService {
       const response = await apiClient.get<ADRListResponse>(url);
       
       // Map the ADR data in the response
-      const mappedData = response.data.data.map(adr => this.mapToADR(adr));
+      return response.data.data.map(adr => this.mapToADR(adr));
       
-      return {
-        ...response.data,
-        data: mappedData
-      };
+      // return {
+      //   ...response.data,
+      //   data: mappedData
+      // };
     } catch (error) {
       throw this.handleApiError(error as AxiosError);
     }
@@ -327,11 +327,8 @@ export class ADRApiService {
    * Create or update an ADR using upsert functionality
    * Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 5.1, 5.2, 5.3, 5.4, 5.5
    */
-  public static async upsertADR(projectId: string, adr: UpsertADRRequest): Promise<ADR> {
+  public static async upsertADR(projectId: string, adr: ADR): Promise<ADR> {
     try {
-      // Validate required fields before sending request
-      this.validateUpsertADRRequest(adr);
-
       const requestPayload = {
         title: adr.title,
         status: adr.status,
@@ -339,11 +336,14 @@ export class ADRApiService {
         decision: adr.decision,
         consequences: adr.consequences,
         alternatives: adr.alternatives || '',
+        content: adr.context,//`${adr.context}\n\n${adr.decision}\n\n${adr.consequences}${adr.alternatives ? '\n\n' + adr.alternatives : ''}`,
         author: adr.author,
         tags: adr.tags,
-        content: adr.content,
-        ...(adr.adr_id && { id: adr.adr_id }) // Include adr_id only if provided (for updates)
+        ...(adr.id && { id: adr.id }) // Include adr_id only if provided (for updates)
       };
+
+      // Validate required fields before sending request
+      this.validateUpsertADRRequest(requestPayload);      
 
       const response = await apiClient.post<ADR>(
         getVersionedPath(`projects/${projectId}/adrs`),

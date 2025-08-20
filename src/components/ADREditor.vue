@@ -430,6 +430,8 @@ watch(() => props.adr, (newADR) => {
   flex-direction: column;
   height: 100%;
   background-color: #ffffff;
+  justify-content: space-between;
+  
 }
 
 .editor-header {

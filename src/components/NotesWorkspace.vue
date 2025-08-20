@@ -344,41 +344,7 @@ async function loadNotes() {
     const items = await NotesApiService.listNotes(props.project.id);
     notes.value = items;
 
-    // await new Promise(resolve => setTimeout(resolve, 500))
 
-    // Sample data - replace with actual API call
-    // notes.value = [
-    //   {
-    //     id: '1',
-    //     title: 'Project Architecture Notes',
-    //     content: 'Key architectural decisions and considerations for the project.\n\n- Use microservices architecture\n- Implement event-driven communication\n- Consider scalability from the start',
-    //     tags: ['architecture', 'planning'],
-    //     is_favorite: true,
-    //     created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    //     updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    //     project_id: props.project.id
-    //   },
-    //   {
-    //     id: '2',
-    //     title: 'Meeting Notes - Sprint Planning',
-    //     content: 'Sprint planning meeting notes from today.\n\nAttendees: Team leads, Product Owner\n\nKey decisions:\n- Focus on user authentication this sprint\n- Implement basic CRUD operations\n- Set up CI/CD pipeline',
-    //     tags: ['meetings', 'sprint-planning'],
-    //     is_favorite: false,
-    //     created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    //     updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    //     project_id: props.project.id
-    //   },
-    //   {
-    //     id: '3',
-    //     title: 'Technical Debt Items',
-    //     content: 'List of technical debt items to address:\n\n1. Refactor authentication service\n2. Update deprecated dependencies\n3. Improve error handling in API layer\n4. Add comprehensive logging',
-    //     tags: ['technical-debt', 'maintenance'],
-    //     is_favorite: false,
-    //     created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    //     updated_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-    //     project_id: props.project.id
-    //   }
-    // ]
 
     // Update shared data
     dataSharing.updateNotesData(notes.value)

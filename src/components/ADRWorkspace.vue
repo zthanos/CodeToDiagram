@@ -1,582 +1,948 @@
 <template>
-  <div class="adr-workspace">
-    <!-- Workspace Header -->
+  <div class="adrs-workspace">
+    <!-- Header -->
     <div class="workspace-header">
       <div class="header-left">
-        <h1>Architectural Decision Records</h1>
-        <p class="workspace-description">
-          Document and track architectural decisions for {{ project.name }}
-        </p>
+        <h2 class="workspace-title">ADR</h2>
+        <p class="workspace-description">Architecture Desisions Records for {{ project?.name || 'this project' }}.</p>
       </div>
       <div class="header-right">
-        <div class="stats-summary">
-          <div class="stat-item">
-            <span class="stat-value">{{ adrStats.total || 0 }}</span>
-            <span class="stat-label">Total ADRs</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ adrStats.accepted || 0 }}</span>
-            <span class="stat-label">Accepted</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ adrStats.proposed || 0 }}</span>
-            <span class="stat-label">Proposed</span>
-          </div>
+        <div class="header-actions">
+          <button class="btn-secondary" @click="showSearchModal = true" :disabled="adrs.length === 0">
+            🔍 Search
+          </button>
+          <button class="btn-primary" @click="createNewAdr">
+            ➕ New ADR
+          </button>
         </div>
       </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="isLoading" class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>Loading ADRs...</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="error-state">
+      <div class="error-icon">⚠️</div>
+      <h3>Failed to Load Aa</h3>
+      <p>{{ error }}</p>
+      <button class="btn-primary" @click="loadAdrs">Try Again</button>
     </div>
 
     <!-- Main Content -->
-    <div class="workspace-content">
-      <!-- List View -->
-      <ADRList
-        v-if="viewMode === 'list'"
-        :adrs="adrs"
-        :search-query="searchQuery"
-        :status-filter="statusFilter"
-        :tag-filter="tagFilter"
-        :readonly="false"
-        @adr-select="handleADRSelect"
-        @adr-create="handleADRCreate"
-        @adr-edit="handleADREdit"
-        @adr-delete="handleADRDelete"
-        @search-change="handleSearchChange"
-        @filter-change="handleFilterChange"
-      />
+    <div v-else class="main-content">
+      <!-- Sidebar -->
+      <div class="notes-sidebar">
+        <!-- Filter and Sort Controls -->
+        <div class="sidebar-controls">
+          <div class="filter-section">
+            <label class="filter-label">Filter by State:</label>
+            <select v-model="selectedState" class="filter-select">
+              <option value="">All states</option>
+              <option v-for="tag in availableStatuses" :key="tag" :value="tag">
+                {{ tag }}
+              </option>
+            </select>
+          </div>
 
-      <!-- Editor View -->
-      <ADREditor
-        v-else-if="viewMode === 'edit' || viewMode === 'create'"
-        :adr="selectedADR"
-        :mode="viewMode"
-        :readonly="false"
-        @save="handleADRSave"
-        @cancel="handleEditorCancel"
-        @delete="handleADRDelete"
-      />
-    </div>
+          <div class="sort-section">
+            <label class="sort-label">Sort by:</label>
+            <select v-model="sortBy" class="sort-select">
+              <option value="updated">Last updated</option>
+              <option value="created">Date created</option>
+              <option value="title">Title</option>
+            </select>
+          </div>
+        </div>
 
-    <!-- Loading Overlay -->
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="loading-content">
-        <div class="loading-spinner"></div>
-        <p>{{ loadingMessage }}</p>
-      </div>
-    </div>
+        <!-- Notes List -->
+        <div class="notes-list">
+          <div v-if="filteredAdrs.length === 0" class="empty-state">
+            <div class="empty-icon">📝</div>
+            <p v-if="adrs.length === 0">No notes yet. Create your first note!</p>
+            <p v-else>No notes match your current filter.</p>
+          </div>
 
-    <!-- Error Toast -->
-    <div v-if="errorMessage" class="error-toast" @click="clearError">
-      <div class="error-content">
-        <span class="error-icon">⚠️</span>
-        <span class="error-text">{{ errorMessage }}</span>
-        <button class="error-close">×</button>
-      </div>
-    </div>
-
-    <!-- Success Toast -->
-    <div v-if="successMessage" class="success-toast" @click="clearSuccess">
-      <div class="success-content">
-        <span class="success-icon">✅</span>
-        <span class="success-text">{{ successMessage }}</span>
-        <button class="success-close">×</button>
-      </div>
-    </div>
-
-    <!-- Delete Confirmation Dialog -->
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click="showDeleteConfirm = false">
-      <div class="modal-content" @click.stop>
-        <h3>Confirm Delete</h3>
-        <p>Are you sure you want to delete this ADR? This action cannot be undone.</p>
-        <div class="modal-actions">
-          <button class="btn-secondary" @click="showDeleteConfirm = false">Cancel</button>
-          <button class="btn-danger" @click="confirmDelete">Delete ADR</button>
+          <div v-for="adr in filteredAdrs" :key="adr.id" class="note-item"
+            :class="{ active: selectedADR?.id === adr.id }" @click="selectNote(adr)">
+            <div class="note-header">
+              <h4 class="note-title">{{ adr.title || 'Untitled Note' }}</h4>
+              <div class="note-meta">
+                <span class="note-date">{{ formatDate(adr.updated_at) }}</span>
+              </div>
+            </div>
+            <div class="note-preview">{{ getPreviewText(adr.context) }}</div>
+            <div v-if="adr.tags && adr.tags.length > 0" class="note-tags">
+              <span v-for="tag in adr.tags" :key="tag" class="note-tag">
+                {{ tag }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- Editor -->
+      <div class="adrs-editor">
+        <div v-if="!selectedADR" class="no-selection">
+          <div class="no-selection-icon">📝</div>
+          <h3>Select a note to edit</h3>
+          <p>Choose a note from the sidebar or create a new one to get started.</p>
+        </div>
+
+        <div v-else class="editor-container">
+
+          <!-- Editor Content -->
+          <div class="editor-content">
+            <!-- Editor View -->
+            <ADREditor :adr="selectedADR" :mode="viewMode" :readonly="false" @save="saveAdr"
+              @cancel="handleEditorCancel" @delete="deleteAdr" />
+          </div>
+
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div v-if="showSearchModal" class="modal-overlay" @click="showSearchModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Search Notes</h3>
+          <button class="modal-close" @click="showSearchModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <input v-model="searchQuery" class="search-input" placeholder="Search in titles and content..."
+            @input="performSearch" ref="searchInput" />
+          <div class="search-results">
+            <div v-if="searchResults.length === 0 && searchQuery" class="no-results">
+              No notes found matching "{{ searchQuery }}"
+            </div>
+            <div v-for="result in searchResults" :key="result.id" class="search-result"
+              @click="selectNoteFromSearch(result)">
+              <h4>{{ result.title || 'Untitled Note' }}</h4>
+              <p>{{ getPreviewText(result.content) }}</p>
+              <div class="search-meta">
+                <span>{{ formatDate(result.updated_at) }}</span>
+                <span v-if="result.tags && result.tags.length > 0">
+                  Tags: {{ result.tags.join(', ') }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tags Modal -->
+    <div v-if="showTagsModal" class="modal-overlay" @click="showTagsModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Manage Tags</h3>
+          <button class="modal-close" @click="showTagsModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="current-tags">
+            <label>Current tags:</label>
+            <div class="tags-list">
+              <span v-for="tag in selectedADR?.tags || []" :key="tag" class="tag-item">
+                {{ tag }}
+                <button @click="removeTag(tag)" class="tag-remove">×</button>
+              </span>
+            </div>
+          </div>
+          <div class="add-tag">
+            <input v-model="newTag" class="tag-input" placeholder="Add new tag..." @keyup.enter="addTag" />
+            <button @click="addTag" class="btn-primary">Add</button>
+          </div>
+          <div class="available-tags">
+            <label>Available tags:</label>
+            <div class="tags-list">
+              <button v-for="tag in availableStatusesForSelection" :key="tag" class="tag-suggestion"
+                @click="addExistingTag(tag)">
+                {{ tag }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteConfirm" class="modal-overlay" @click="showDeleteConfirm = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Delete Note</h3>
+          <button class="modal-close" @click="showDeleteConfirm = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete "{{ selectedADR?.title || 'Untitled Note' }}"?</p>
+          <p class="warning-text">This action cannot be undone.</p>
+          <div class="modal-actions">
+            <button class="btn-secondary" @click="showDeleteConfirm = false">Cancel</button>
+            <button class="btn-danger" @click="deleteNote">Delete Note</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success/Error Notifications -->
+    <div v-if="notification" class="notification" :class="notification.type">
+      <span>{{ notification.message }}</span>
+      <button @click="notification = null" class="notification-close">×</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import ADRList from './ADRList.vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { Project } from '../types/project'
+import { useWorkspaceDataSharing } from '../composables/useWorkspaceDataSharing'
+import { ADRApiService } from '@/services/ADRApiService';
+import { ADR } from '@/types/adr';
 import ADREditor from './ADREditor.vue'
-import { ADRApiService } from '../services/ADRApiService'
-import { useADRSearch } from '../composables/useADRSearch'
-import type { 
-  ADR, 
-  ADRWorkspaceProps, 
-  ADRWorkspaceEmits, 
-  ADRWorkspaceState,
-  ADRFilterConfig,
-  CreateADRRequest
-} from '../types/adr'
-import type { Project } from '../types/project'
 
-const props = defineProps<ADRWorkspaceProps>()
-const emit = defineEmits<ADRWorkspaceEmits>()
+// Props
+interface Props {
+  project: Project
+}
 
-// Router
-const router = useRouter()
+const props = defineProps<Props>()
 
-// Composables
-const { 
-  searchConfig,
-  filterConfig,
-  updateSearchConfig,
-  updateFilterConfig,
-  performSearch,
-  applyFilters
-} = useADRSearch()
 
-// Reactive state
-const workspaceState = ref<ADRWorkspaceState>({
-  isLoading: false,
-  isSaving: false,
-  hasChanges: false,
-  lastSaved: null,
-  adrs: [],
-  selectedADR: null,
-  viewMode: 'list',
-  searchQuery: '',
-  statusFilter: 'all',
-  tagFilter: [],
-  sortBy: 'date',
-  sortOrder: 'desc'
-})
-
+// State
+const adrs = ref<ADR[]>([])
+const selectedADR = ref<ADR | null>(null)
 const isLoading = ref(false)
-const loadingMessage = ref('')
-const errorMessage = ref('')
-const successMessage = ref('')
+const error = ref<string | null>(null)
+const isModified = ref(false)
+const viewMode = ref<string>('create' | 'edit')
+
+// Modal states
+const showSearchModal = ref(false)
+const showTagsModal = ref(false)
 const showDeleteConfirm = ref(false)
-const adrToDelete = ref<string | null>(null)
+
+// Filter and search states
+const selectedState = ref('')
+const sortBy = ref('updated')
+const searchQuery = ref('')
+const searchResults = ref<ADR[]>([])
+
+// Tag management
+const newTag = ref('')
+
+// Notification
+const notification = ref<{ type: 'success' | 'error', message: string } | null>(null)
+
+// Data sharing
+const dataSharing = useWorkspaceDataSharing()
 
 // Computed properties
-const adrs = computed(() => workspaceState.value.adrs)
-const selectedADR = computed(() => workspaceState.value.selectedADR)
-const viewMode = computed(() => workspaceState.value.viewMode)
-const searchQuery = computed(() => workspaceState.value.searchQuery)
-const statusFilter = computed(() => workspaceState.value.statusFilter)
-const tagFilter = computed(() => workspaceState.value.tagFilter)
+const availableStatuses = computed(() => {
+  const states = new Set<string>()
+  adrs.value.forEach(adr => {
+    states.add(adr.status)
+  })
+  return Array.from(states).sort()
+})
 
-const adrStats = computed(() => {
-  const stats = {
-    total: adrs.value.length,
-    proposed: 0,
-    accepted: 0,
-    deprecated: 0,
-    superseded: 0
+const availableStatusesForSelection = computed(() => {
+  const currentStates = selectedADR.value?.status || []
+  return availableStatuses.value.filter(state => !currentStates.includes(state))
+})
+
+const filteredAdrs = computed(() => {
+  let filtered = [...adrs.value]
+
+  // Filter by tag
+  if (selectedState.value) {
+    filtered = filtered.filter(adr =>
+      adr.status?.includes(selectedState.value)
+    )
   }
 
-  adrs.value.forEach(adr => {
-    stats[adr.status]++
+  // Sort
+  filtered.sort((a, b) => {
+    switch (sortBy.value) {
+      case 'title':
+        return (a.title || 'Untitled').localeCompare(b.title || 'Untitled')
+      case 'created':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      case 'updated':
+      default:
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    }
   })
 
-  return stats
+  return filtered
 })
 
 // Lifecycle
-onMounted(async () => {
-  await loadADRs()
-  
-  // Initialize API service
-  ADRApiService.initialize()
-})
-
-// Methods
-const loadADRs = async () => {
-  isLoading.value = true
-  loadingMessage.value = 'Loading ADRs...'
-  
-  try {
-    const loadedADRs = await ADRApiService.listADRs(props.project.id)
-    workspaceState.value.adrs = loadedADRs.data
-    
-    // Load stats
-    // try {
-    //   const stats = await ADRApiService.getADRStats(props.project.id)
-    //   // Stats are computed from the loaded ADRs, but we could use API stats if needed
-    // } catch (statsError) {
-    //   console.warn('Failed to load ADR stats:', statsError)
-    // }
-    
-  } catch (error) {
-    console.error('Failed to load ADRs:', error)
-    showError('Failed to load ADRs. Please try again.')
-  } finally {
-    isLoading.value = false
-    loadingMessage.value = ''
-  }
-}
-
-const handleADRSelect = (adr: ADR) => {
-  workspaceState.value.selectedADR = adr
-  workspaceState.value.viewMode = 'edit'
-}
-
-const handleADRCreate = () => {
-  workspaceState.value.selectedADR = null
-  workspaceState.value.viewMode = 'create'
-}
-
-const handleADREdit = (adr: ADR) => {
-  workspaceState.value.selectedADR = adr
-  workspaceState.value.viewMode = 'edit'
-}
-
-const handleADRSave = async (adr: ADR) => {
-  isLoading.value = true
-  loadingMessage.value = workspaceState.value.viewMode === 'create' ? 'Creating ADR...' : 'Saving ADR...'
-  
-  try {
-    let savedADR: ADR
-    
-    if (workspaceState.value.viewMode === 'create') {
-      const createRequest: CreateADRRequest = {
-        title: adr.title,
-        status: adr.status,
-        context: adr.context,
-        decision: adr.decision,
-        consequences: adr.consequences,
-        alternatives: adr.alternatives,
-        author: adr.author,
-        tags: adr.tags
-      }
-      
-      savedADR = await ADRApiService.createADR(props.project.id, createRequest)
-      workspaceState.value.adrs.push(savedADR)
-      showSuccess('ADR created successfully!')
-    } else {
-      const updateRequest = {
-        title: adr.title,
-        status: adr.status,
-        context: adr.context,
-        decision: adr.decision,
-        consequences: adr.consequences,
-        alternatives: adr.alternatives,
-        tags: adr.tags,
-        superseded_by: adr.superseded_by,
-        supersedes: adr.supersedes
-      }
-      
-      savedADR = await ADRApiService.updateADR(adr.id, updateRequest)
-      
-      // Update the ADR in the list
-      const index = workspaceState.value.adrs.findIndex(a => a.id === adr.id)
-      if (index !== -1) {
-        workspaceState.value.adrs[index] = savedADR
-      }
-      
-      showSuccess('ADR updated successfully!')
-    }
-    
-    workspaceState.value.selectedADR = savedADR
-    workspaceState.value.viewMode = 'list'
-    workspaceState.value.hasChanges = false
-    workspaceState.value.lastSaved = new Date()
-    
-    emit('unsaved-changes', false)
-    
-  } catch (error) {
-    console.error('Failed to save ADR:', error)
-    showError('Failed to save ADR. Please try again.')
-  } finally {
-    isLoading.value = false
-    loadingMessage.value = ''
-  }
-}
-
-const handleADRDelete = (adrId: string) => {
-  adrToDelete.value = adrId
-  showDeleteConfirm.value = true
-}
-
-const confirmDelete = async () => {
-  if (!adrToDelete.value) return
-  
-  isLoading.value = true
-  loadingMessage.value = 'Deleting ADR...'
-  showDeleteConfirm.value = false
-  
-  try {
-    await ADRApiService.deleteADR(adrToDelete.value)
-    
-    // Remove from list
-    workspaceState.value.adrs = workspaceState.value.adrs.filter(
-      adr => adr.id !== adrToDelete.value
-    )
-    
-    // If we're editing the deleted ADR, go back to list
-    if (workspaceState.value.selectedADR?.id === adrToDelete.value) {
-      workspaceState.value.selectedADR = null
-      workspaceState.value.viewMode = 'list'
-    }
-    
-    showSuccess('ADR deleted successfully!')
-    
-  } catch (error) {
-    console.error('Failed to delete ADR:', error)
-    showError('Failed to delete ADR. Please try again.')
-  } finally {
-    isLoading.value = false
-    loadingMessage.value = ''
-    adrToDelete.value = null
-  }
-}
-
-const handleEditorCancel = () => {
-  if (workspaceState.value.hasChanges) {
-    const shouldDiscard = confirm('You have unsaved changes. Are you sure you want to discard them?')
-    if (!shouldDiscard) return
-  }
-  
-  workspaceState.value.selectedADR = null
-  workspaceState.value.viewMode = 'list'
-  workspaceState.value.hasChanges = false
-  emit('unsaved-changes', false)
-}
-
-const handleSearchChange = (query: string) => {
-  workspaceState.value.searchQuery = query
-  updateSearchConfig({ query })
-}
-
-const handleFilterChange = (filterConfig: ADRFilterConfig) => {
-  workspaceState.value.statusFilter = filterConfig.status
-  workspaceState.value.tagFilter = filterConfig.tags
-  updateFilterConfig(filterConfig)
-}
-
-// Utility methods
-const showError = (message: string) => {
-  errorMessage.value = message
-  setTimeout(() => {
-    errorMessage.value = ''
-  }, 5000)
-}
-
-const showSuccess = (message: string) => {
-  successMessage.value = message
-  setTimeout(() => {
-    successMessage.value = ''
-  }, 3000)
-}
-
-const clearError = () => {
-  errorMessage.value = ''
-}
-
-const clearSuccess = () => {
-  successMessage.value = ''
-}
-
-// Watch for changes to emit unsaved changes
-watch(() => workspaceState.value.hasChanges, (hasChanges) => {
-  emit('unsaved-changes', hasChanges)
+onMounted(() => {
+  loadAdrs()
 })
 
 // Watch for project changes
-watch(() => props.project, async (newProject) => {
-  if (newProject) {
-    await loadADRs()
+watch(() => props.project?.id, (newProjectId) => {
+  if (newProjectId) {
+    loadAdrs()
   }
-}, { deep: true })
+})
+
+// Methods
+async function loadAdrs() {
+  if (!props.project?.id) return
+
+  isLoading.value = true
+  error.value = null
+
+  try {
+    // Simulate API call - replace with actual API service
+    const items = await ADRApiService.listADRs(props.project.id);
+    adrs.value = items;
+
+
+
+    // Update shared data
+    dataSharing.updateADRsData(adrs.value)
+
+    console.log('Notes loaded successfully:', adrs.value)
+  } catch (err) {
+    console.error('Failed to load notes:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to load notes'
+    showNotification('error', 'Failed to load notes')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function createNewAdr() {
+  const newADR: ADR = {
+    title: '',
+    context: '',
+    tags: [],
+    decision: '',
+    consequences: '',
+    author: '',
+    status: 'proposed',
+    alternatives: '',
+    created_at: new Date(),
+    updated_at: new Date(),
+    project_id: props.project.id
+  }
+
+  adrs.value.unshift(newADR)
+  selectedADR.value = newADR
+  isModified.value = true
+
+  // Focus on title input
+  nextTick(() => {
+    const titleInput = document.querySelector('.note-title-input') as HTMLInputElement
+    titleInput?.focus()
+  })
+}
+
+function selectNote(adr: ADR) {
+  if (isModified.value && selectedADR.value) {
+    if (confirm('You have unsaved changes. Do you want to save them first?')) {
+      saveAdr()
+    }
+  }
+
+  selectedADR.value = adr
+  isModified.value = false
+}
+
+function markAsModified() {
+  isModified.value = true
+}
+async function handleEditorCancel() {
+  if (!selectedADR.value) return
+
+}
+
+async function saveAdr(adr: ADR) {
+  if (!adr) return
+
+  try {
+    adr.updated_at = new Date()
+
+
+    const savedADR = await ADRApiService.upsertADR(props.project.id, adr)
+
+
+    // Update the note in the list
+    const index = adrs.value.findIndex(n => n.id === selectedADR.value!.id)
+    if (index >= 0) {
+      adrs.value[index] = { ...selectedADR.value }
+    }
+
+    // Update shared data
+    dataSharing.updateADRsData(adrs.value)
+
+    isModified.value = false
+    showNotification('success', 'ADR saved successfully')
+
+    console.log('ADR saved:', selectedADR.value)
+  } catch (err) {
+    console.error('Failed to save ADR:', err)
+    showNotification('error', 'Failed to save ADR')
+  }
+}
+
+function confirmDeleteNote() {
+  showDeleteConfirm.value = true
+}
+
+async function deleteAdr() {
+  if (!selectedADR.value) return
+
+  try {
+    // Simulate API call - replace with actual API service
+    await ADRApiService.deleteADR(selectedADR.value)
+    // await new Promise(resolve => setTimeout(resolve, 300))
+
+    // Remove from list
+    adrs.value = adrs.value.filter(n => n.id !== selectedADR.value!.id)
+
+    // Update shared data
+    dataSharing.updateADRsData(adrs.value)
+
+    // Clear selection
+    selectedADR.value = null
+    isModified.value = false
+    showDeleteConfirm.value = false
+
+    showNotification('success', 'Note deleted successfully')
+
+    console.log('Note deleted')
+  } catch (err) {
+    console.error('Failed to delete note:', err)
+    showNotification('error', 'Failed to delete note')
+  }
+}
+
+function toggleFavorite() {
+  if (!selectedADR.value) return
+
+  selectedADR.value.is_favorite = !selectedADR.value.is_favorite
+  markAsModified()
+}
+
+function addTag() {
+  if (!selectedADR.value || !newTag.value.trim()) return
+
+  const tag = newTag.value.trim().toLowerCase()
+  if (!selectedADR.value.tags.includes(tag)) {
+    selectedADR.value.tags.push(tag)
+    markAsModified()
+  }
+
+  newTag.value = ''
+}
+
+function addExistingTag(tag: string) {
+  if (!selectedADR.value) return
+
+  if (!selectedADR.value.tags.includes(tag)) {
+    selectedADR.value.tags.push(tag)
+    markAsModified()
+  }
+}
+
+function removeTag(tag: string) {
+  if (!selectedADR.value) return
+
+  selectedADR.value.tags = selectedADR.value.tags.filter(t => t !== tag)
+  markAsModified()
+}
+
+function performSearch() {
+  if (!searchQuery.value.trim()) {
+    searchResults.value = []
+    return
+  }
+
+  const query = searchQuery.value.toLowerCase()
+  searchResults.value = adrs.value.filter(note =>
+    (note.title?.toLowerCase().includes(query)) ||
+    (note.content?.toLowerCase().includes(query)) ||
+    (note.tags?.some(tag => tag.toLowerCase().includes(query)))
+  )
+}
+
+function selectNoteFromSearch(note: Note) {
+  selectNote(note)
+  showSearchModal.value = false
+  searchQuery.value = ''
+  searchResults.value = []
+}
+
+// Utility functions
+function generateId(): string {
+  return `note_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+}
+
+function formatDate(date: Date): string {
+  const now = new Date()
+  const diffTime = now.getTime() - new Date(date).getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) {
+    return 'Today'
+  } else if (diffDays === 1) {
+    return 'Yesterday'
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`
+  } else {
+    return new Date(date).toLocaleDateString()
+  }
+}
+
+function formatDateTime(date: Date): string {
+  return new Date(date).toLocaleString()
+}
+
+function getPreviewText(content: string): string {
+  if (!content) return 'No content'
+  return content.length > 100 ? content.substring(0, 100) + '...' : content
+}
+
+function getWordCount(content: string): number {
+  if (!content) return 0
+  return content.trim().split(/\s+/).filter(word => word.length > 0).length
+}
+
+function showNotification(type: 'success' | 'error', message: string) {
+  notification.value = { type, message }
+  setTimeout(() => {
+    notification.value = null
+  }, 3000)
+}
 </script>
 
 <style scoped>
-.adr-workspace {
+.adrs-workspace {
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background-color: #ffffff;
-  position: relative;
+  background: #ffffff;
 }
 
+/* Header */
 .workspace-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 2rem 2rem 1.5rem 2rem;
-  border-bottom: 1px solid #e1e4e8;
-  background-color: #f8f9fa;
+  padding: 24px 24px 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
 }
 
-.header-left h1 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.75rem;
+.header-left {
+  flex: 1;
+}
+
+.workspace-title {
+  font-size: 28px;
   font-weight: 600;
-  color: #24292f;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
 }
 
 .workspace-description {
+  font-size: 16px;
+  color: #666;
   margin: 0;
-  font-size: 0.875rem;
-  color: #656d76;
-  line-height: 1.4;
 }
 
-.stats-summary {
+.header-right {
   display: flex;
-  gap: 2rem;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
 }
 
-.stat-value {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #0969da;
-  line-height: 1;
+.header-actions {
+  display: flex;
+  gap: 12px;
 }
 
-.stat-label {
-  font-size: 0.75rem;
-  color: #656d76;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-top: 0.25rem;
-}
-
-.workspace-content {
+/* Loading and Error States */
+.loading-state,
+.error-state {
   flex: 1;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(255, 255, 255, 0.9);
-  display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-}
-
-.loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  text-align: center;
+  padding: 48px 24px;
 }
 
 .loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f4f6;
-  border-top: 4px solid #0969da;
+  width: 32px;
+  height: 32px;
+  border: 3px solid #f3f4f6;
+  border-top: 3px solid #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  margin-bottom: 16px;
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
-.loading-content p {
-  margin: 0;
-  font-size: 0.875rem;
-  color: #656d76;
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
 }
 
-.error-toast,
-.success-toast {
-  position: fixed;
-  top: 2rem;
-  right: 2rem;
-  z-index: 1001;
-  max-width: 400px;
+/* Main Content */
+.main-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  
+}
+
+/* Sidebar */
+.notes-sidebar {
+  width: 320px;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  background: #f8f9fa;
+}
+
+.sidebar-controls {
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.filter-section,
+.sort-section {
+  margin-bottom: 12px;
+}
+
+.filter-section:last-child,
+.sort-section:last-child {
+  margin-bottom: 0;
+}
+
+.filter-label,
+.sort-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-select,
+.sort-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+/* Notes List */
+.notes-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.note-item {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  padding: 12px;
+  margin-bottom: 8px;
   cursor: pointer;
-  animation: slideIn 0.3s ease-out;
+  transition: all 0.2s ease;
 }
 
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+.note-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.error-toast {
-  background-color: #ffebe9;
-  border: 1px solid #ffcccb;
+.note-item.active {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
 }
 
-.success-toast {
-  background-color: #dafbe1;
-  border: 1px solid #9ae6b4;
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
 }
 
-.error-content,
-.success-content {
+.note-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.note-meta {
+  font-size: 11px;
+  color: #6b7280;
+  margin-left: 8px;
+}
+
+.note-preview {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.note-tag {
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* Editor */
+.adrs-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  height: 100%;
+}
+
+.no-selection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.no-selection-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+  opacity: 0.5;
+}
+
+.editor-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-bottom: 150px;
+}
+
+
+.note-title-input {
+  flex: 1;
+  font-size: 20px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #1a1a1a;
+  margin-right: 16px;
+}
+
+.note-title-input:focus {
+  outline: none;
+}
+
+.note-title-input::placeholder {
+  color: #9ca3af;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-content {
+  flex: 1;
+
+}
+
+.note-content-editor {
+  width: 100%;
+  height: 100%;
+  border: none;
+  resize: none;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.note-content-editor:focus {
+  outline: none;
+}
+
+.note-content-editor::placeholder {
+  color: #9ca3af;
+}
+
+
+
+.editor-info {
+  display: flex;
+  gap: 16px;
+}
+
+.modification-indicator {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
+  gap: 4px;
+  color: #f59e0b;
 }
 
-.error-icon,
-.success-icon {
-  font-size: 1.25rem;
-  flex-shrink: 0;
+.modified-dot {
+  color: #f59e0b;
 }
 
-.error-text,
-.success-text {
-  flex: 1;
-  font-size: 0.875rem;
-  line-height: 1.4;
-}
-
-.error-text {
-  color: #cf222e;
-}
-
-.success-text {
-  color: #1a7f37;
-}
-
-.error-close,
-.success-close {
-  background: none;
-  border: none;
-  font-size: 1.25rem;
+/* Buttons */
+.btn-primary {
+  background: #3b82f6;
+  color: #ffffff;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  color: inherit;
-  opacity: 0.7;
-  flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
-.error-close:hover,
-.success-close:hover {
-  opacity: 1;
+.btn-primary:hover {
+  background: #2563eb;
+  border-color: #2563eb;
 }
 
+.btn-primary:disabled {
+  background: #9ca3af;
+  border-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #ffffff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn-secondary:disabled {
+  background: #f9fafb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: #ef4444;
+  color: #ffffff;
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.btn-icon {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: #f9fafb;
+}
+
+.btn-icon.active {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+/* Modals */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -584,99 +950,294 @@ watch(() => props.project, async (newProject) => {
 }
 
 .modal-content {
-  background-color: #ffffff;
-  border-radius: 8px;
-  padding: 2rem;
-  max-width: 400px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  max-width: 500px;
   width: 90%;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  max-height: 80vh;
+  overflow-y: auto;
 }
 
-.modal-content h3 {
-  margin: 0 0 1rem 0;
-  color: #24292f;
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.modal-content p {
-  margin: 0 0 1.5rem 0;
-  color: #656d76;
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.modal-close:hover {
+  background: #f3f4f6;
+}
+
+.modal-body {
+  padding: 20px 24px 24px 24px;
 }
 
 .modal-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: 12px;
   justify-content: flex-end;
+  margin-top: 20px;
 }
 
-.btn-primary,
-.btn-secondary,
-.btn-danger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
+/* Search Modal */
+.search-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-results {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.no-results {
+  text-align: center;
+  color: #6b7280;
+  padding: 24px;
+}
+
+.search-result {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid;
 }
 
-.btn-primary {
-  background-color: #0969da;
+.search-result:hover {
+  border-color: #3b82f6;
+  background: #f8fafc;
+}
+
+.search-result h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.search-result p {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.search-meta {
+  font-size: 11px;
+  color: #9ca3af;
+  display: flex;
+  gap: 12px;
+}
+
+/* Tags Modal */
+.current-tags,
+.add-tag,
+.available-tags {
+  margin-bottom: 20px;
+}
+
+.current-tags label,
+.available-tags label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-item {
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-remove {
+  background: none;
+  border: none;
+  color: #3730a3;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.tag-remove:hover {
+  background: rgba(55, 48, 163, 0.2);
+}
+
+.add-tag {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.tag-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.tag-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.tag-suggestion {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tag-suggestion:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.warning-text {
+  color: #ef4444;
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+/* Notifications */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1001;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.notification.success {
+  background: #10b981;
   color: #ffffff;
-  border-color: #0969da;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background-color: #0860ca;
-}
-
-.btn-secondary {
-  background-color: #f6f8fa;
-  color: #24292f;
-  border-color: #d1d9e0;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background-color: #f3f4f6;
-}
-
-.btn-danger {
-  background-color: #cf222e;
+.notification.error {
+  background: #ef4444;
   color: #ffffff;
-  border-color: #cf222e;
 }
 
-.btn-danger:hover:not(:disabled) {
-  background-color: #b91c1c;
+.notification-close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  opacity: 0.8;
 }
 
+.notification-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
   .workspace-header {
     flex-direction: column;
-    gap: 1.5rem;
-    padding: 1.5rem 1rem;
+    align-items: stretch;
+    gap: 16px;
   }
 
-  .stats-summary {
-    gap: 1rem;
-    justify-content: center;
+  .header-actions {
+    justify-content: flex-end;
+  }
+
+  .main-content {
+    flex-direction: column;
+  }
+
+  .notes-sidebar {
     width: 100%;
+    height: 300px;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
   }
 
-  .error-toast,
-  .success-toast {
-    top: 1rem;
-    right: 1rem;
-    left: 1rem;
-    max-width: none;
+  .notes-editor {
+    flex: 1;
   }
 
   .modal-content {
-    margin: 1rem;
-    width: auto;
+    width: 95%;
+    margin: 20px;
   }
 }
 </style>
