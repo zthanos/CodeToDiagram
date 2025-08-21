@@ -377,6 +377,7 @@ export class RequirementsApiService {
           title: item.title,
           description: item.description,
           priority: item.priority || 'medium',
+          document_id: item.document_id,
           project_id: item.project_id || projectId,
           id: item.id || null,
           status: item.status
@@ -394,6 +395,7 @@ export class RequirementsApiService {
     const payload: UpsertRequirementItemRequest = {
       project_id: item.project_id,
       description: item.description,
+      document_id: item.document_id,
       priority: item.priority,
       status: item.status
     };

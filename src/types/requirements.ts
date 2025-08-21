@@ -21,6 +21,7 @@ export interface RequirementItem {
   id: string;
   title: string;
   description: string;
+  document_id: string;
   status: 'new' | 'accepted' | 'rejected';
   priority: 'low' | 'medium' | 'high' | 'critical';
   project_id: string;
@@ -128,6 +129,7 @@ export interface UpdateRequirementItemRequest {
 // Upsert request interface for unified create/update operations
 export interface UpsertRequirementItemRequest {
   project_id: string;  
+  document_id: string;
   title?: string;
   description?: string;
   priority?: 'low' | 'medium' | 'high' | 'critical';

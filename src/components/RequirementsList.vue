@@ -1483,6 +1483,7 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   position: relative;
+  height: 100%;
 }
 
 .requirements-list__spacer {
@@ -1491,6 +1492,8 @@ onUnmounted(() => {
 
 .requirements-list__items {
   padding: 0 16px;
+  height: 100%;
+  overflow-y: auto;
 }
 
 /* Select all */

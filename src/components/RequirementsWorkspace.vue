@@ -418,6 +418,7 @@ const changeTracker = ref({
 // Concurrent editing detection
 const documentVersion = ref(0)
 const lastKnownVersion = ref(0)
+const lastDocumentId = ref(0)
 const conflictDetected = ref(false)
 const conflictResolutionMode = ref(false)
 
@@ -593,6 +594,7 @@ async function populateWorkspaceFromDocument(document: RequirementsDocument) {
   originalStatus.value = document.status
   documentVersion.value = document.version
   lastKnownVersion.value = document.version
+  lastDocumentId.value = document.id
 
   // Reset change tracking
   hasChanges.value = false
@@ -1307,11 +1309,11 @@ function handleRequirementDelete(requirementId: string) {
 
 function handleRequirementCreate(requirement: Partial<RequirementItem>) {
   const newRequirement: RequirementItem = {
-    id: Date.now().toString(),
     title: requirement.title || '',
     description: requirement.description || '',
     status: requirement.status || 'new',
     priority: requirement.priority || 'medium',
+    document_id: lastDocumentId,
     project_id: props.project?.id || '',
     created_at: new Date(),
     updated_at: new Date(),

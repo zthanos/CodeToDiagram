@@ -506,7 +506,10 @@ Please provide helpful, specific advice about the solution outline. Be concise a
 
     // Use the direct streaming endpoint
     const baseUrl = 'http://localhost:8000' // Use direct URL since apiConfig might not be available
-    const response = await fetch(`${baseUrl}/api/v1/llm/stream`, {
+    const so_chat_uri = `${baseUrl}/api/v1/llm/project_id/${props.project.id}/stream`;
+
+    // const response = await fetch(`${baseUrl}/api/v1/llm/stream`, {
+    const response = await fetch(so_chat_uri, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -515,7 +518,8 @@ Please provide helpful, specific advice about the solution outline. Be concise a
         prompt,
         system_prompt: systemPrompt,
         prompt_key: 'unknown',
-        options: {}
+        options: {},
+        history: ""
       })
     })
 
